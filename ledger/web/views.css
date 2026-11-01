@@ -1123,27 +1123,64 @@ span.daycell-fig.is-none {
 
 .lg-block { display: grid; gap: .35rem; }
 
-/* Seasons: one row per session on record. A finished one carries its final
-   table; the live one, the table so far, with a soccer hairline to say so.
-   Built from the league card's own parts — tag, place, record, form. */
-.ss-list { display: grid; gap: .6rem; }
+/* Seasons: a timeline of every session on record, folded by default. Years
+   newest first; inside a year the rows run down a rail in the order played.
+   Each row is a <details>: the summary is the season in one line, the body
+   the whole record. A podium finish on a finished season carries its metal
+   (`--podium-*`, in styles.css); a live season a soccer hairline instead. */
+.ss-fold > summary { font-weight: 600; color: var(--ink-2); }
+.ss-years { display: grid; gap: 1.1rem; }
+.ss-year { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; }
+.ss-year-n { font-size: 1.6rem; font-weight: 580; letter-spacing: -.03em; font-variant-numeric: proportional-nums; }
+.ss-year-sum { font-size: var(--t-sm); color: var(--ink-3); }
+.ss-tl { position: relative; display: grid; gap: .6rem; padding-left: 1.2rem; }
+.ss-tl::before {
+  content: ''; position: absolute; left: .32rem; top: 1rem; bottom: 1rem; width: 2px;
+  background: var(--line-2); border-radius: 1px;
+}
 .ss-row {
-  display: grid; gap: .5rem; padding: .75rem .9rem; min-width: 0;
+  position: relative; min-width: 0;
   border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2);
+  padding: .7rem .9rem;
+}
+.ss-row::before {
+  content: ''; position: absolute; left: calc(-1.2rem + .32rem - 4px); top: 1.15rem;
+  width: 10px; height: 10px; border-radius: 50%; box-sizing: border-box;
+  background: var(--pl, var(--ink-3)); border: 2px solid var(--surface);
 }
 .ss-row.is-live { border-color: color-mix(in srgb, var(--k-soccer) 40%, var(--line)); }
-.ss-head { display: flex; align-items: center; gap: .6rem; min-width: 0; flex-wrap: wrap; }
-.ss-name {
-  flex: 1 1 12rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-weight: 600; color: var(--ink); text-decoration: none;
+.ss-row[data-place="1"] { --pl: var(--podium-1); }
+.ss-row[data-place="2"] { --pl: var(--podium-2); }
+.ss-row[data-place="3"] { --pl: var(--podium-3); }
+.ss-row[data-place] { border-color: color-mix(in srgb, var(--pl) 50%, var(--line)); }
+.ss-row[data-place="1"] { background: color-mix(in srgb, var(--podium-1) 7%, var(--surface-2)); }
+.ss-sum {
+  list-style: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto;
+  gap: .9rem; align-items: center; min-width: 0;
 }
-.ss-name:hover { text-decoration: underline; }
+.ss-sum::-webkit-details-marker { display: none; }
+.ss-sum:hover .ss-title { color: var(--ink); }
+.ss-place { display: flex; align-items: baseline; gap: .15rem; min-width: 3.6rem; color: var(--pl, var(--ink)); }
+.ss-place .lg-pos, .ss-place .lg-posord { color: inherit; }
+.ss-place svg { width: 1.25rem; height: 1.25rem; align-self: center; margin-right: .2rem; }
+.ss-who { min-width: 0; display: grid; gap: .2rem; }
+.ss-who-top { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; min-width: 0; }
+.ss-team { font-weight: 700; color: var(--ink); }
+.ss-title { color: var(--ink-2); }
 .ss-state { font-size: var(--t-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--k-soccer); }
 .ss-state.is-final { color: var(--ink-3); }
-.ss-body { display: flex; align-items: center; gap: .85rem; flex-wrap: wrap; }
-.ss-of { min-width: 0; flex: 1 1 10rem; }
-.ss-span { font-size: var(--t-sm); color: var(--ink-2); }
-.ss-line { flex-basis: 100%; margin: 0; }
+.ss-dates { font-size: var(--t-xs); color: var(--ink-3); }
+.ss-right { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; justify-content: flex-end; }
+.ss-form { flex-wrap: nowrap; }
+.ss-open { display: grid; gap: .7rem; margin-top: .7rem; padding-top: .7rem; border-top: 1px solid var(--line); }
+.ss-open .lg-line { margin: 0; }
+.ss-meta { margin: 0; font-size: var(--t-xs); color: var(--ink-3); display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
+.ss-meta a { color: var(--ink-2); display: inline-flex; align-items: center; gap: .2rem; }
+.ss-meta a svg { width: .8rem; height: .8rem; }
+@media (max-width: 720px) {
+  .ss-sum { grid-template-columns: auto 1fr; }
+  .ss-right { grid-column: 1 / -1; justify-content: flex-start; }
+}
 .lg-form { gap: 3px; }
 .lg-form .form-cell { width: 1.7rem; height: 1.7rem; font-size: var(--t-xs); }
 

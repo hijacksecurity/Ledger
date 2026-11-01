@@ -653,28 +653,6 @@ def read(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         ]
         mine = lg["my_team"].lower()
         by_team = {s["team"].lower(): s for s in standings}
-
-        def with_opponent(
-            f: dict[str, Any],
-            mine: str = mine,
-            by_team: dict[str, Any] = by_team,
-            fixtures: list[dict[str, Any]] = fixtures,
-            my_team: str = lg["my_team"],
-        ) -> dict[str, Any]:
-            """Attach the other side's league row, so the next match can be
-            read in context rather than as a bare name."""
-            home = mine in (f["home"] or "").lower()
-            opponent = (f["away"] if home else f["home"]) or ""
-            row = by_team.get(opponent.lower())
-            return {
-                **f,
-                "home_game": home,
-                "opponent": opponent,
-                "opponent_standing": dict(row) if row else None,
-                "opponent_note": describe_opponent(
-                    dict(row) if row else None, opponent, fixtures, my_team
-                ),
-            }
         out.append(
             {
                 "provider_id": lg["provider_id"],
@@ -692,13 +670,31 @@ def read(conn: sqlite3.Connection) -> list[dict[str, Any]]:
                 ) if any(s["gp"] for s in standings) else None,
                 "fixtures": fixtures,
                 "my_fixtures": [
-                    with_opponent(f) for f in fixtures
+                    _with_opponent(f, lg["my_team"], by_team, fixtures) for f in fixtures
                     if mine in (f["home"] or "").lower()
                     or mine in (f["away"] or "").lower()
                 ],
             }
         )
     return out
+
+
+def _with_opponent(
+    f: dict[str, Any], my_team: str, by_team: dict[str, Any], fixtures: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Attach the other side's league row, so a match can be read in context
+    rather than as a bare name. Shared by the live cards and the seasons."""
+    mine = my_team.lower()
+    home = mine in (f["home"] or "").lower()
+    opponent = (f["away"] if home else f["home"]) or ""
+    row = by_team.get(opponent.lower())
+    return {
+        **f,
+        "home_game": home,
+        "opponent": opponent,
+        "opponent_standing": dict(row) if row else None,
+        "opponent_note": describe_opponent(dict(row) if row else None, opponent, fixtures, my_team),
+    }
 
 
 def _path_for(league: League) -> str | None:
@@ -1124,10 +1120,11 @@ def seasons(conn: sqlite3.Connection, *, today: str | None = None) -> list[dict[
         ]
         fixtures = [
             dict(r) for r in conn.execute(
-                "SELECT date, home, away, home_score, away_score, played "
+                "SELECT date, time_text, home, away, home_score, away_score, played, venue "
                 "FROM league_fixture WHERE league_id = ? ORDER BY date, home", (lg["id"],),
             )
         ]
+        by_team = {st["team"].lower(): st for st in standings}
         me = next((st for st in standings if st["team"].lower() == mine), None)
         my_fx = [
             f for f in fixtures
@@ -1171,6 +1168,10 @@ def seasons(conn: sqlite3.Connection, *, today: str | None = None) -> list[dict[
             "played": len(results), "scheduled": len(my_fx),
             "position": me["position"] if me and any(st["gp"] for st in standings) else None,
             "teams": len(standings),
+            # The whole table and every one of our fixtures, as the live card
+            # has them. This is the record; nothing is trimmed from it.
+            "standings": standings,
+            "my_fixtures": [_with_opponent(f, lg["my_team"], by_team, fixtures) for f in my_fx],
             "record": (
                 {k: me.get(k) for k in ("gp", "w", "t", "l", "gf", "ga", "gd", "pts", "wp")}
                 if me else None

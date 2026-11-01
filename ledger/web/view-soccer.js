@@ -175,60 +175,128 @@ export function mount(host, route, { setQuery }) {
     paintSeasons(res.data.seasons || []);
   }
 
+  /**
+   * The seasons, as a timeline. Folded by default: sessions run year round
+   * and the list only grows, so it is there for looking around, not for every
+   * visit. Years newest first, so where things stand is at the top; inside a
+   * year the rows run in the order the seasons were played, down a rail, so
+   * the year reads as the story it was. Each row folds open onto the whole
+   * record of that season — the final table, every fixture — trimmed of
+   * nothing.
+   */
   function paintSeasons(list) {
-    const done = list.filter((x) => x.complete).length;
+    const done = list.filter((x) => x.complete);
+    const first = list.map((x) => x.start).filter(Boolean).sort()[0];
     pSeasons.head.querySelector('.sub').textContent = list.length
-      ? `${done} finished, ${list.length - done} being played — newest first, the final table for a finished one`
+      ? `${list.length} season${list.length === 1 ? '' : 's'}${first ? ` since ${fmt.monthYear(first.slice(0, 7))}` : ''} — ${done.length} finished, ${list.length - done.length} being played. Each one opens onto its final table and every fixture.`
       : ' ';
     if (!list.length) {
       pSeasons.body.append(emptyNote('No seasons on record yet — they arrive with the first league pull.'));
       return;
     }
-    const host = el('div', { class: 'ss-list' });
-    for (const x of list) host.append(seasonRow(x));
-    pSeasons.body.append(host);
+    const thisYear = String(new Date().getFullYear());
+    const yearOf = (x) => (x.start ? x.start.slice(0, 4) : thisYear);
+    const years = [...new Set(list.map(yearOf))].sort().reverse();
+    const wrap = el('div', { class: 'ss-years' });
+    for (const y of years) {
+      const rows = list.filter((x) => yearOf(x) === y)
+        .sort((a, b) => ((a.start || '9999') < (b.start || '9999') ? -1 : 1));
+      const fin = rows.filter((x) => x.complete);
+      const best = fin.map((x) => x.position).filter(Boolean).sort((a, b) => a - b)[0];
+      const tot = fin.reduce((t, x) => {
+        const r = x.record || {};
+        return { w: t.w + (r.w || 0), d: t.d + (r.t || 0), l: t.l + (r.l || 0) };
+      }, { w: 0, d: 0, l: 0 });
+      wrap.append(el('div', { class: 'ss-year' }, [
+        el('span', { class: 'ss-year-n', text: y }),
+        el('span', { class: 'ss-year-sum', text:
+          `${rows.length} season${rows.length === 1 ? '' : 's'}`
+          + (fin.length ? ` · ${fin.length} finished · best finish ${best ? ordinal(best) : '—'} · ${tot.w}–${tot.d}–${tot.l} over the finished ones` : '') }),
+      ]));
+      const tl = el('div', { class: 'ss-tl' });
+      for (const x of rows) tl.append(seasonRow(x));
+      wrap.append(tl);
+    }
+    const fold = collapsible(`Open the timeline — ${list.length} season${list.length === 1 ? '' : 's'}`, wrap);
+    fold.classList.add('ss-fold');
+    pSeasons.body.append(fold);
   }
 
-  /** One season: its name and state, the place and record, the results. */
+  /** "Winter Session I Coed Open Middle Division - Indoor Soccer - Venue"
+   *  → the session, and the rest as one quiet line. */
+  const seasonTitle = (name) => {
+    const parts = String(name || '').split(' - ').map((p) => p.trim()).filter(Boolean);
+    return { title: parts[0] || name || 'League', meta: parts.slice(1).join(' · ') };
+  };
+
+  /**
+   * One season, folded. The summary is the whole story in one line — place,
+   * fixture, team, session, dates, record, form — and the body is the
+   * record behind it: the final table with the team marked, and every
+   * fixture with its score. A podium finish on a finished season gets the
+   * medal and its metal; a live season gets a soccer hairline and no medal,
+   * because a place mid-season is not a finish.
+   */
   function seasonRow(x) {
     const r = x.record || {};
     const pos = x.position;
+    const podium = x.complete && pos && pos <= 3 ? pos : null;
+    const { title, meta } = seasonTitle(x.name);
     const span = x.start && x.end
       ? `${fmt.date(x.start)} – ${fmt.dateY(x.end)}`
       : 'schedule not published yet';
     const lg = x.logged || { games: 0, goals: 0, assists: 0 };
-    const row = el('article', { class: `ss-row${x.complete ? ' is-final' : ' is-live'}` });
-    row.append(el('div', { class: 'ss-head' }, [
-      el('span', { class: `lg-tag lg-tag-${x.fixture}`, text: FIXTURE_LABEL[x.fixture] || x.fixture }),
-      el('a', { class: 'ss-name', href: x.url, target: '_blank', rel: 'noopener noreferrer', text: x.name, title: x.name }),
-      el('span', { class: `ss-state${x.complete ? ' is-final' : ''}`, text: x.complete ? 'Final' : 'In progress' }),
-    ]));
-    row.append(el('div', { class: 'ss-body' }, [
-      el('div', { class: 'lg-posbox' }, [
+
+    const row = el('details', {
+      class: `ss-row${x.complete ? ' is-final' : ' is-live'}`,
+      'data-place': podium ? String(podium) : null,
+    });
+
+    const strip = el('div', { class: 'formstrip lg-form ss-form' });
+    for (const f of x.results || []) {
+      strip.append(el('span', {
+        class: `form-cell form-${f.result}`,
+        title: `${fmt.dateY(f.date)} · ${f.home_game ? 'vs' : 'at'} ${f.opponent} · ${f.gf}–${f.ga}`,
+      }, [el('span', { text: f.result })]));
+    }
+
+    row.append(el('summary', { class: 'ss-sum' }, [
+      el('div', { class: 'ss-place', 'aria-label': pos ? `${ordinal(pos)} of ${x.teams}` : `${x.teams} teams` }, [
+        podium === 1 ? icon('medal') : null,
         el('span', { class: 'lg-pos', text: pos ? String(pos) : '—' }),
         el('span', { class: 'lg-posord', text: pos ? ordSuffix(pos) : '' }),
+      ].filter(Boolean)),
+      el('div', { class: 'ss-who' }, [
+        el('div', { class: 'ss-who-top' }, [
+          el('span', { class: `lg-tag lg-tag-${x.fixture}`, text: FIXTURE_LABEL[x.fixture] || x.fixture }),
+          el('span', { class: 'ss-team', text: x.my_team }),
+          el('span', { class: 'ss-title', text: title }),
+          el('span', { class: `ss-state${x.complete ? ' is-final' : ''}`, text: x.complete ? 'Final' : 'In progress' }),
+        ]),
+        el('div', { class: 'ss-dates', text: `${pos ? `${ordinal(pos)} of ${x.teams}` : `${x.teams} teams`} · ${span}` }),
       ]),
-      el('div', { class: 'ss-of' }, [
-        el('div', { class: 'lg-of', text: pos ? `of ${x.teams} teams` : `${x.teams} teams` }),
-        el('div', { class: 'ss-span', text: span }),
-      ]),
-      el('dl', { class: 'lg-rec' }, [
-        recCell('W', r.w), recCell('D', r.t), recCell('L', r.l), recCell('PTS', r.pts, true),
-      ]),
-      el('p', { class: 'lg-line ss-line', text:
-        `${r.gp ?? 0} played · ${r.gf ?? 0} scored, ${r.ga ?? 0} conceded · ${fmt.signed(r.gd ?? 0, '', 0)} difference`
-        + (lg.games ? ` · ${lg.goals} goal${lg.goals === 1 ? '' : 's'}, ${lg.assists} assist${lg.assists === 1 ? '' : 's'} in ${lg.games} logged` : '') }),
+      el('div', { class: 'ss-right' }, [
+        el('dl', { class: 'lg-rec' }, [
+          recCell('W', r.w), recCell('D', r.t), recCell('L', r.l), recCell('PTS', r.pts, true),
+        ]),
+        (x.results || []).length ? strip : null,
+      ].filter(Boolean)),
     ]));
-    if ((x.results || []).length) {
-      const strip = el('div', { class: 'formstrip lg-form' });
-      for (const f of x.results) {
-        strip.append(el('span', {
-          class: `form-cell form-${f.result}`,
-          title: `${fmt.dateY(f.date)} · ${f.home_game ? 'vs' : 'at'} ${f.opponent} · ${f.gf}–${f.ga}`,
-        }, [el('span', { text: f.result })]));
-      }
-      row.append(strip);
+
+    const body = el('div', { class: 'ss-open' });
+    body.append(el('p', { class: 'lg-line', text:
+      `${r.gp ?? 0} played · ${r.gf ?? 0} scored, ${r.ga ?? 0} conceded · ${fmt.signed(r.gd ?? 0, '', 0)} difference`
+      + (lg.games ? ` · ${lg.goals} goal${lg.goals === 1 ? '' : 's'}, ${lg.assists} assist${lg.assists === 1 ? '' : 's'} in ${lg.games} logged` : '') }));
+    if ((x.standings || []).length) {
+      body.append(el('div', { class: 'lbl', text: x.complete ? 'Final table' : 'Table so far' }));
+      body.append(standingsTable(x));
     }
+    if ((x.my_fixtures || []).length) body.append(fixtureList(x));
+    body.append(el('p', { class: 'ss-meta' }, [
+      meta ? el('span', { text: `${meta} · ` }) : null,
+      el('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { text: 'League site' }), icon('right')]),
+    ].filter(Boolean)));
+    row.append(body);
     return row;
   }
 

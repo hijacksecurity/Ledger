@@ -55,6 +55,11 @@
   /* The best run at a distance: a medal, a star, a label. Gold, and used for
      nothing else. */
   --best:        #e9b949;
+  /* A finish on the podium: gold is `--best`, the running page's medal hue;
+     silver and bronze sit beside it, each readable as text on this ground. */
+  --podium-1: var(--best);
+  --podium-2: #b9c0c8;
+  --podium-3: #d1884f;
 
   /* Habit hues. A habit is not a modality, so it does not borrow one of the
      nine above — `--k-lift` means lifting on every chart in this app and must
@@ -243,6 +248,9 @@
   --k-other:     #898781;
   --pace:        #4a3aa7;
   --best:        #875f00;
+  --podium-1: var(--best);
+  --podium-2: #6f7a85;
+  --podium-3: #9a5a25;
 
   --hb-1: #12855d;
   --hb-2: #4a3aa7;

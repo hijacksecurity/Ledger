@@ -379,6 +379,10 @@ def test_seasons_list_every_season_newest_first_with_the_final_table(seeded):
     assert summer["teams"] == len(SUMMER_LEAGUE.standings)
     assert summer["record"]["w"] == 3 and summer["record"]["pts"] == 10
     assert summer["logged"] == {"games": 0, "goals": 0, "assists": 0}
+    # The whole table and every fixture travel with the season.
+    assert [st["team"] for st in summer["standings"]] == [st.team for st in SUMMER_LEAGUE.standings]
+    assert len(summer["my_fixtures"]) == 2
+    assert all("opponent" in f and "home_game" in f for f in summer["my_fixtures"])
     assert fall["archived"] is False and fall["complete"] is False
     assert fall["played"] == 0 and fall["scheduled"] == 2
 
