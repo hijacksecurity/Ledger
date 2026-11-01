@@ -181,6 +181,13 @@
      are not modalities, so they get their own hues rather than borrowing
      one that already means soccer or running. Re-picked per theme. */
   --sleep:   #7b8cf5;
+  /* Sleep stages, in Garmin's own convention so the bar reads the same as
+     the watch: deep indigo, light blue, REM magenta, awake coral. Four
+     distinct hues — four shades of one blue could not be told apart. */
+  --st-deep:  #5563e0;
+  --st-light: #8fc4ff;
+  --st-rem:   #e06ad8;
+  --st-awake: #ff8f7a;
   --hrv:     #2bb3a3;
   --rhr:     #e07a9b;
   --stress:  #e8a33d;
@@ -275,6 +282,10 @@
   --sa-indigo: #4d5fd1;
   --sa-plum:   #9a4bb0;
   --sleep:   #4d5fd1;
+  --st-deep:  #3b47c2;
+  --st-light: #4ea3e8;
+  --st-rem:   #c23fb8;
+  --st-awake: #e8664f;
   --hrv:     #0e8577;
   --rhr:     #b8406a;
   --stress:  #a86a00;

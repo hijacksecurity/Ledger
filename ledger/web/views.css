@@ -2617,14 +2617,15 @@ svg.plot text.reflabel { fill: var(--ink); font-size: 12px; font-weight: 700; le
 .rc-mark.tone-none { background: var(--ink-2); }
 
 /* Last night's stages under the sleep number: deep, REM, light, awake, with
-   the minutes of each. Light is what is left once deep and REM are out. */
+   the minutes of each, in four distinct hues (tokens in styles.css). Light is
+   what is left once deep and REM are out. */
 .rc-stages { display: grid; gap: .4rem; }
 .rc-stages-bar { display: flex; height: 6px; border-radius: 999px; overflow: hidden; gap: 2px; }
 .rc-stages-bar i { display: block; height: 100%; background: var(--st); }
-.rc-st-deep  { --st: color-mix(in srgb, var(--sleep) 72%, black); }
-.rc-st-rem   { --st: var(--sleep); }
-.rc-st-light { --st: color-mix(in srgb, var(--sleep) 42%, transparent); }
-.rc-st-awake { --st: color-mix(in srgb, var(--ink-3) 40%, transparent); }
+.rc-st-deep  { --st: var(--st-deep); }
+.rc-st-rem   { --st: var(--st-rem); }
+.rc-st-light { --st: var(--st-light); }
+.rc-st-awake { --st: var(--st-awake); }
 .rc-stages-key { display: flex; flex-wrap: wrap; gap: .2rem .8rem; font-size: var(--t-xs); color: var(--ink-3); }
 .rc-stages-key span { display: inline-flex; align-items: center; gap: .35rem; font-variant-numeric: tabular-nums; }
 .rc-stages-key i { width: 8px; height: 8px; border-radius: 2px; background: var(--st); }
