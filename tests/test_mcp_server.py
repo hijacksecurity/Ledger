@@ -20,9 +20,9 @@ pytest.importorskip("mcp", reason="pip install -e .[mcp]")
 import httpx
 from fastapi.testclient import TestClient
 
-from ledger import mcp_server
 from ledger.entry import parse_entry
 from ledger.ingest import save_session
+from ledger.mcp import server
 
 MONDAY = date.today() - timedelta(days=date.today().weekday())
 
@@ -48,12 +48,12 @@ def api(tmp_path, monkeypatch):
         for parsed in parse_entry(ENTRY):
             save_session(conn, parsed)
         conn.close()
-        monkeypatch.setattr(mcp_server, "_transport", httpx.ASGITransport(app=main.app))
+        monkeypatch.setattr(server, "_transport", httpx.ASGITransport(app=main.app))
         yield client
 
 
 def call(name: str, **args):
-    result = asyncio.run(mcp_server.mcp.call_tool(name, args))
+    result = asyncio.run(server.mcp.call_tool(name, args))
     # FastMCP returns (content blocks, structured) for structured output, or
     # just the content blocks. Either way the first text block is the answer.
     blocks = result[0] if isinstance(result, tuple) else result
@@ -65,14 +65,14 @@ def call(name: str, **args):
 
 
 def tool_names() -> set[str]:
-    return {t.name for t in asyncio.run(mcp_server.mcp.list_tools())}
+    return {t.name for t in asyncio.run(server.mcp.list_tools())}
 
 
 # --- Shape of the surface --------------------------------------------------
 
 
 def test_every_tool_is_read_only():
-    tools = asyncio.run(mcp_server.mcp.list_tools())
+    tools = asyncio.run(server.mcp.list_tools())
     assert tools, "no tools registered"
     for t in tools:
         assert t.annotations is not None, t.name
@@ -83,7 +83,7 @@ def test_every_tool_is_read_only():
 def test_scoreboard_is_not_exposed():
     names = tool_names()
     assert not any("score" in n for n in names), names
-    assert "Scoreboard" in mcp_server.INSTRUCTIONS
+    assert "Scoreboard" in server.INSTRUCTIONS
 
 
 def test_no_write_tools_registered():
@@ -95,7 +95,7 @@ def test_no_write_tools_registered():
 
 
 def test_every_tool_has_a_description():
-    for t in asyncio.run(mcp_server.mcp.list_tools()):
+    for t in asyncio.run(server.mcp.list_tools()):
         assert t.description and len(t.description) > 20, t.name
 
 
@@ -187,8 +187,8 @@ def test_unknown_session_is_a_clear_404(api):
 
 
 def test_app_down_names_the_fix(monkeypatch):
-    monkeypatch.setattr(mcp_server, "_transport", None)
-    monkeypatch.setattr(mcp_server, "LEDGER_URL", "http://127.0.0.1:9")
+    monkeypatch.setattr(server, "_transport", None)
+    monkeypatch.setattr(server, "LEDGER_URL", "http://127.0.0.1:9")
     with pytest.raises(Exception, match="docker compose up -d"):
         call("history")
 

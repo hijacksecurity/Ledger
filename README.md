@@ -188,7 +188,7 @@ sync idempotency, league-season discovery. Glue code is deliberately untested.
 
 ## Reading it from Claude
 
-`ledger/mcp_server.py` serves the read API as MCP tools, so a Claude session on
+`ledger/mcp/` serves the read API as MCP tools, so a Claude session on
 the same machine can ask about a week, a session, the watch's nightly numbers
 or the sync without opening the app. It is a proxy over the running app:
 every tool is one GET, nothing is computed twice, and the number quoted in a
@@ -197,11 +197,11 @@ not exposed.
 
 ```sh
 pip install -e ".[mcp]"
-.venv/Scripts/python.exe -m ledger.mcp_server       # stdio; the app must be up
+.venv/Scripts/python.exe -m ledger.mcp       # stdio; the app must be up
 ```
 
 Register it as a stdio server with that command, in Claude Code (`claude mcp
-add -s user ledger -- <path-to-venv-python> -m ledger.mcp_server`) or in
+add -s user ledger -- <path-to-venv-python> -m ledger.mcp`) or in
 Claude Desktop's `claude_desktop_config.json`. `LEDGER_URL` points it at an
 app that is not on `http://127.0.0.1:8000`. `--transport http --port N` serves
 the same tools on a loopback port for a client that needs one; it binds

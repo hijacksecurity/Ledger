@@ -1,7 +1,7 @@
 """Ledger as an MCP server: the read API, for a Claude session on this machine.
 
-    .venv/Scripts/python.exe -m ledger.mcp_server            # stdio (default)
-    .venv/Scripts/python.exe -m ledger.mcp_server --transport http --port 8765
+    .venv/Scripts/python.exe -m ledger.mcp            # stdio (default)
+    .venv/Scripts/python.exe -m ledger.mcp --transport http --port 8765
 
 A thin proxy, nothing more. Every tool is one GET against the running app
 (`LEDGER_URL`, default http://127.0.0.1:8000) and returns the JSON the page
@@ -28,7 +28,6 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import sys
 from typing import Any
 
 import httpx
@@ -360,6 +359,3 @@ def main(argv: list[str] | None = None) -> int:
         mcp.run(transport="stdio")
     return 0
 
-
-if __name__ == "__main__":
-    sys.exit(main())

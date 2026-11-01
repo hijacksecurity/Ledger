@@ -25,7 +25,7 @@ dev = [
     "ruff>=0.8",
     "httpx>=0.28",   # fastapi TestClient transport; not a runtime dependency
 ]
-# `ledger.mcp_server` — the read API as MCP tools for a Claude session on the
+# `ledger.mcp` — the read API as MCP tools for a Claude session on the
 # same machine. Runs on the host, outside the image; the image never needs it.
 mcp = [
     "mcp>=1.20,<2",
@@ -34,7 +34,7 @@ mcp = [
 
 [project.scripts]
 ledger = "ledger.cli:main"
-ledger-mcp = "ledger.mcp_server:main"
+ledger-mcp = "ledger.mcp.server:main"
 
 [build-system]
 requires = ["setuptools>=68"]
