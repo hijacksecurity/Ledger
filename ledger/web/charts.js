@@ -457,7 +457,11 @@ function drawColumns(spec, width, format, formatShort) {
         .map((_, i) => i)
         .filter((i) => heads[i] > 0 && (i % labelStep === 0 || i === maxIdx || i === lastIdx)));
 
-  const labelEvery = Math.max(1, Math.ceil((n * 44) / plotW));
+  /* How many slots one label needs: sized to the longest label actually on
+     the axis, not a fixed 44px — "Sep 2026" is wider than "Sep 6", and the
+     fixed figure let two month-year labels touch. */
+  const labelPx = Math.max(44, 6.6 * Math.max(...points.map((p) => String(p.label || '').length)) + 8);
+  const labelEvery = Math.max(1, Math.ceil((n * labelPx) / plotW));
   const surface = token('surface');
 
   points.forEach((p, i) => {
@@ -537,10 +541,14 @@ function drawColumns(spec, width, format, formatShort) {
       }));
     }
 
-    if (!spec.hideAxis && (i % labelEvery === 0 || i === lastIdx)) {
+    /* The endpoint is always labelled, so a regular label within one step of
+       it is dropped — the same rule the line chart keeps, for the same
+       reason: "Oct 25" and "Nov 1" were printed on top of each other. */
+    const regular = i % labelEvery === 0 && (lastIdx - i >= labelEvery);
+    if (!spec.hideAxis && (regular || i === lastIdx)) {
       g.append(el('text', {
         class: 'tick', x: x + barW / 2, y: height - 9 - (hasGroups ? GROUP_ROW : 0),
-        'text-anchor': 'middle', text: p.label,
+        'text-anchor': i === lastIdx && lastIdx > 0 ? 'end' : 'middle', text: p.label,
       }));
     }
     if (hasGroups && starts.includes(i)) {

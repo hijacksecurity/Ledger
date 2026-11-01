@@ -9,7 +9,7 @@
 
 import {
   el, clear, api, busy, fmt, colorOf, orderKinds, token, KINDS,
-  getWeightUnit, setWeightUnit, inUnit, stepTowardInk,
+  getWeightUnit, setWeightUnit, inUnit, weekStart, addDays,
 } from './core.js';
 import {
   panel, panelError, statStrip, emptyNote, skeletonBlock, kindName, readout, segmented, subTabs,
@@ -315,18 +315,37 @@ export function mount(host, route, { setQuery }) {
       formatShort: (v) => v.toFixed(1),
     }));
 
+    /* The record itself, under the line it feeds: every week's activities
+       as a column, split by modality in the colours every chart uses, with
+       the lifetime average drawn across them so each week reads at once as
+       the kind of week it was and as above or below the number. The split
+       comes from the session list and is checked against the server's day
+       counts week by week: if they ever disagree the columns fall back to
+       one plain series, because a stack that does not sum to the count
+       would be the oldest failure in this codebase, drawn in colour. */
+    const stacked = weeksByKind(weeks, data.sessions);
+    const above = weeks.filter((p) => p.values.n >= current).length;
     const sub = el('div', { class: 'fig-secondary' });
     pAvg.body.append(
-      el('p', { class: 'fig-sublabel', text: 'Activities logged each week — the input the line above smooths' }),
+      el('p', { class: 'fig-sublabel', text:
+        `Activities logged each week, by modality — the input the line above smooths. `
+        + `${above} of ${weeks.length} weeks at or above the lifetime average.` }),
       sub,
     );
     figs.push(figure(sub, {
       type: 'columns',
-      aria: 'Activities logged in each week',
-      height: 130, unit: 'activities', periodLabel: 'Week of',
+      aria: 'Activities logged in each week, split by modality, with the lifetime average as a guide',
+      height: 220, unit: 'activities', periodLabel: 'Week of',
       padLeft: PAD_L, padRight: PAD_R, minSlot: 1,
-      series: [{ key: 'n', label: 'Activities', color: stepTowardInk(colorOf('soccer'), 0.42) }],
-      points: byYear(weeks),
+      series: stacked
+        ? stacked.kinds.map((k) => ({ key: k, label: kindName(k), color: colorOf(k) }))
+        : [{ key: 'n', label: 'Activities', color: colorOf('soccer') }],
+      points: byYear(stacked ? stacked.points : weeks),
+      /* The guide is named in the legend, not in a gutter beside the plot:
+         a gutter would narrow this chart and break the shared x extent with
+         the line above, which is the whole point of stacking the two. */
+      guides: [{ value: current, color: token('ink-2'), dashed: true }],
+      legendExtra: [{ label: `lifetime average ${current.toFixed(2)}`, shape: 'line', color: token('ink-2') }],
       format: (v) => fmt.int(v),
       formatShort: (v) => fmt.int(v),
       labels: 'none',
@@ -335,6 +354,34 @@ export function mount(host, route, { setQuery }) {
     pAvg.body.append(el('p', { class: 'sub', text:
       'A blank week pulls the line down a little and the next entry pulls it back. There is no streak here to break, '
       + 'which is the entire point: the metric measures the record, not the last few days of it.' }));
+  }
+
+  /**
+   * The weekly counts split by kind, on exactly the weeks the counts cover.
+   * A session belongs to the Mon–Sun week whose Sunday is the point's key.
+   * Returns null if any week's split does not sum to the server's count for
+   * it — then the caller draws the plain series rather than a wrong stack.
+   */
+  function weeksByKind(weeks, sessions) {
+    if (!weeks.length || !(sessions || []).length) return null;
+    const byWeek = new Map(weeks.map((p) => [p.key, {}]));
+    for (const sess of sessions) {
+      const key = addDays(weekStart(sess.date), 6);
+      const bucket = byWeek.get(key);
+      if (!bucket) continue;
+      bucket[sess.kind] = (bucket[sess.kind] || 0) + 1;
+    }
+    const points = weeks.map((p) => {
+      const values = byWeek.get(p.key) || {};
+      const sum = Object.values(values).reduce((a, b) => a + b, 0);
+      return sum === Number(p.values.n) ? { ...p, values, total: p.values.n } : null;
+    });
+    if (points.some((p) => p === null)) {
+      console.warn('activities per week: session split disagrees with the day counts; drawing one series');
+      return null;
+    }
+    const kinds = orderKinds(KINDS.filter((k) => points.some((p) => p.values[k] > 0)));
+    return { kinds, points };
   }
 
   /* ══ flagship 2 — bodyweight ═══════════════════════════════════════════ */
