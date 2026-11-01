@@ -139,11 +139,13 @@ dated D is the night that **ended** on the morning of D.
 | What the record says | `#/recovery` | `patternFindings()`: match recovery cost (D+1..D+3 vs rest mornings), G+A and RPE after nights that met / missed the need, run pace after balanced / below-range HRV, the weekday that costs sleep, stress → next night's score. Each has a minimum n and fires only past it |
 | The morning after, The day after | `#/recovery` | Row D+1 grouped by what day D was; sessions on D paired with row D, split on `sleep_need_min` and the HRV range |
 | Read-out, Every night | `#/recovery` | The table prints every row the charts drew, with Garmin's need and range per night |
+| Recovery (five cards: sleep, HRV, resting HR, readiness, body battery at wake) | `#/week` | `measureCards()` in `recovery-cards.js` — the **same builder and rows** as *Last night, and the longer term* on `#/recovery`; last night large, then the week on screen ("This week" or "Week of …") and the last 28 nights, each tagged on its scale (invariant 17) |
 | Week footnote (HRV, RHR, readiness, sleep: week vs 28-day) | `#/week` | Server-side `_recovery()` in `report/weekly.py` — equals the *This week* / *Last 28 nights* columns (invariant 16) |
 | Sleep habit | `#/habits`, `#/week`, `#/calendar` | Reads `sleep_hours` against `habit.target` |
 
 **Bands are Garmin's, and `recovery.js` is the only place they are written
-down** (`BANDS`, `hrvBand`, `sleepBand`, `rhrBand`). Readiness: Poor 1–24,
+down** (`BANDS`, `hrvBand`, `sleepBand`, `rhrBand`); `recovery-cards.js` is the
+only place a row is turned into a reading (`readingOf`) and a card. Readiness: Poor 1–24,
 Low 25–49, Moderate 50–74, High 75–94, Prime 95–100. Sleep score: Poor <60,
 Fair 60–79, Good 80–89, Excellent 90+. Stress: Rest 0–25, Low 26–50,
 Medium 51–75, High 76–100. Body battery: Low 0–25, Medium 26–50, High 51–75,
@@ -351,7 +353,7 @@ Counts from `scripts/inventory.py`; run it after adding a panel.
 
 | Page | Panels | Charts | Tables | Stat strips |
 |---|---|---|---|---|
-| `#/week` | 12 | 2 | 0 | 4 |
+| `#/week` | 13 | 2 | 0 | 4 |
 | `#/score` | 4 | 1 | 2 | 2 |
 | `#/calendar` | 1 | 0 | 0 | 1 |
 | `#/habits` | 3 | 0 | 0 | 1 |
@@ -501,6 +503,7 @@ nobody indexed is a panel nobody will think to re-check when its data changes.
 
 - Distance this week
 - Habits
+- Recovery
 - Week score
 - This week on one scale
 - Acute : chronic
@@ -538,6 +541,7 @@ Things that must agree. Each one is here because it once did not.
 | 14 | The Habits pillar on `#/week` == the Habits pillar on `#/score`, same week |
 | 15 | A habit's rate == its own `totals.met`/`totals.scored`; no surface recomputes either |
 | 16 | Recovery: the `#/week` footnote (week mean vs 28-day mean of HRV, resting HR, readiness, sleep) == the *This week* and *Last 28 nights* columns on `#/recovery` — verified equal on 2026-10-31; both are plain means over `metric_daily` with the same Monday and the same trailing window |
+| 17 | The five Recovery cards on `#/week` == the same five cards on `#/recovery` (last night, the week, the 28 nights, and every tag): one builder, `measureCards()` in `recovery-cards.js`, fed the same `/api/metrics` rows; neither page computes a reading itself |
 
 ## Verifying
 

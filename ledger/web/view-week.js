@@ -6,7 +6,7 @@
 import {
   el, icon, clear, api, qs, busy, fmt, colorOf, orderKinds, KINDS, ON_FOOT,
   addDays, reducedMotion, rememberSessions, toast, bumpRevision,
-  getWeightUnit, inUnit, dateOf,
+  getWeightUnit, inUnit, dateOf, todayISO,
 } from './core.js';
 import {
   panel, panelError, statStrip, sessionList, factsLine, acwrMeter,
@@ -15,8 +15,11 @@ import {
 } from './ui.js';
 import { figure, splitBar, sparkline } from './charts.js';
 import {
-  weekReadout, invalidate, weekIntent, goalWeightLb, latestWeighIn, weighInDelta,
+  weekReadout, invalidate, weekIntent, goalWeightLb, latestWeighIn, weighInDelta, cached,
 } from './dataset.js';
+import {
+  recoveryContext, lastNight, nightOfText, measureCards, SNAPSHOT_KEYS, BASELINE_NIGHTS,
+} from './recovery-cards.js';
 import {
   scoreWeek, band, toKg, inputFromSummary, weightedPace, attainTone,
 } from './score.js';
@@ -45,6 +48,8 @@ export function mount(host, route) {
        and there was nothing". The widget holds its skeleton for the first and
        states the fact for the second. */
     habits: undefined,
+    /* Same again for the nights: `undefined` until `/api/metrics` answers. */
+    recovery: undefined,
   };
   let figures = [];
   let distFig = null;
@@ -123,6 +128,17 @@ export function mount(host, route) {
     kicker: 'One tap',
   });
 
+  /* The morning's snapshot: five of the Recovery page's cards, built by the
+     same code (`recovery-cards.js`) from the same rows, so the number here is
+     the number there. Last night large, then the week and the 28 nights under
+     it, each on the scale named on the card. It sits with Habits because both
+     are about today; everything below reports what already happened. The
+     charts, the findings and the other two measures stay on `#/recovery` —
+     drawing them here would be that page, twice. */
+  const pRecov = panel({
+    title: 'Recovery', sub: ' ', wide: true, kicker: 'Last night',
+  });
+
   const pSplit = panel({
     title: 'This week on one scale', sub: 'training load, split by modality',
     kicker: 'Measured',
@@ -181,13 +197,14 @@ export function mount(host, route) {
   const foot = el('div', { class: 'footnotes' });
 
   nav.append(jump, btnToday);
-  host.append(nav, hero, stripHost, pDist, pHabits, rowA, pSplit, pRead, rowB, foot);
+  host.append(nav, hero, stripHost, pDist, pHabits, pRecov, rowA, pSplit, pRead, rowB, foot);
 
   heroFig.append(el('div', { class: 'sk', style: 'height:5.5rem;width:9rem' }));
   skeletonLines(2, heroAside);
   skeletonBlock(96, stripHost);
   skeletonBlock(190, pDist.body);
   skeletonBlock(120, pHabits.body);
+  skeletonBlock(170, pRecov.body);
   skeletonBlock(120, pScore.body);
   skeletonBlock(90, pSplit.body);
   skeletonBlock(90, pAcwr.body);
@@ -236,25 +253,77 @@ export function mount(host, route) {
        renormalise the other six — giving this page a different total from the
        Scoreboard for the same week. That is the exact failure the pace
        baseline above was added to stop, so it is fetched the same way. */
-    const [lk, soc, prior, hab] = await Promise.all([
+    /* The nights: the 28 ending today for the big numbers and the baseline
+       (the same cache entry the Recovery page fills), and the week on screen
+       for its own row — one fetch for either week, so a past week reads its
+       own nights rather than none. */
+    const today = todayISO();
+    const weekEndISO = (state.data.week || {}).end;
+    const [lk, soc, prior, hab, base, wk] = await Promise.all([
       api('/api/plan/locked'),
       api('/api/soccer'),
       api(`/api/sessions${qs({
         from: addDays(weekStartISO, -28), to: addDays(weekStartISO, -1),
         kind: 'run', limit: 200,
       })}`),
-      api(`/api/habits${qs({ from: weekStartISO, to: (state.data.week || {}).end })}`),
+      api(`/api/habits${qs({ from: weekStartISO, to: weekEndISO })}`),
+      cached(`metrics:base:${today}`, `/api/metrics${qs({ from: addDays(today, -(BASELINE_NIGHTS - 1)), to: today })}`),
+      cached(`metrics:${weekStartISO}:${weekEndISO}`, `/api/metrics${qs({ from: weekStartISO, to: weekEndISO })}`),
     ]);
     if (!alive) return;
     state.locked = lk.ok ? lk.data : null;
     state.soccer = soc.ok ? soc.data : null;
     state.paceBefore = prior.ok ? weightedPace(prior.data.items || []) : null;
     state.habits = hab.ok ? hab.data : null;
+    state.recovery = { base, wk, today };
     paintDistance();
     paintHabits();
+    paintRecovery();
     paintScore();
   }
 
+
+  /**
+   * Last night and the week, on the Recovery page's own cards.
+   *
+   * Nothing is decided here: which night is last, what a reading is called
+   * and how a mean is tagged all come from `recovery-cards.js`, and the rows
+   * are `/api/metrics` as served. The week row is the week on screen — "This
+   * week" when today is in it, otherwise named by its Monday — so the arrows
+   * move this panel the way they move every other one.
+   */
+  function paintRecovery() {
+    if (state.recovery === undefined) return;
+    clear(pRecov.body);
+    const sub = pRecov.head.querySelector('.sub');
+    const { base, wk, today } = state.recovery;
+    if (!base.ok) { sub.textContent = ' '; panelError(pRecov.body, base, 'Daily metrics'); return; }
+    const baseRows = base.data.days || [];
+    const last = lastNight(baseRows);
+    if (!last) {
+      sub.textContent = ' ';
+      pRecov.body.append(emptyNote('No nights on record yet — these arrive with the first Garmin sync.'));
+      return;
+    }
+    const week = state.data.week || {};
+    const isThisWeek = week.start <= today && today <= week.end;
+    const weekRows = wk.ok ? (wk.data.days || []) : [];
+    sub.textContent = `${nightOfText(last, today)} — each figure on the scale named on its card`;
+    pRecov.body.append(
+      measureCards(recoveryContext(baseRows), {
+        last, baseRows, keys: SNAPSHOT_KEYS,
+        rows: [
+          [isThisWeek ? 'This week' : `Week of ${fmt.date(week.start)}`, weekRows],
+          ['Last 28 nights', baseRows],
+        ],
+      }),
+      el('div', { class: 'plan-actions' }, [
+        el('a', { class: 'btn btn-quiet btn-sm', href: '#/recovery' }, [
+          el('span', { text: 'Full recovery page' }), icon('right'),
+        ]),
+      ]),
+    );
+  }
 
   /**
    * Habits for the week on screen: one row each, seven marks, one tap.

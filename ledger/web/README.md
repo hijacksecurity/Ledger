@@ -16,6 +16,8 @@ dataset.js      cached fetches and the derived layer (teams, rhythm, rolling)
 insights.js     the findings engine — 26 rules over the record
 score.js        the week score and the level — pure functions, no DOM
 habits.js       habit marks, words and hues — decides no day's state
+recovery.js     the nightly numbers — bands, ranges, findings; pure, no DOM
+recovery-cards.js  one card per measure, shared by #/recovery and #/week
 view-*.js       one module per view
 sw.js           offline shell, network-first
 ```

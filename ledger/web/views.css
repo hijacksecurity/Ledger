@@ -2548,6 +2548,10 @@ svg.plot text.reflabel { fill: var(--ink); font-size: 12px; font-weight: 700; le
 .rc-cards { display: grid; gap: var(--gap); grid-template-columns: 1fr; }
 @media (min-width: 640px) { .rc-cards { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1100px) { .rc-cards { grid-template-columns: repeat(4, 1fr); } }
+/* Five cards — the Week page's snapshot — take three tracks from 900px up
+   and stay there: four would strand one card alone on a second row, and five
+   abreast squeezed "Resting HR" onto two lines and wrapped every row. */
+@media (min-width: 900px) { .rc-cards[data-n="5"] { grid-template-columns: repeat(3, 1fr); } }
 .rc-card {
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
   padding: .85rem .95rem .7rem; display: flex; flex-direction: column; gap: .55rem; min-width: 0;

@@ -32,15 +32,17 @@ import {
 import { figure, splitBar } from './charts.js';
 import { cached, sessionsIn } from './dataset.js';
 import {
-  isNum, summarise, latest, stageSplit, byWeekday, nightAfter, dayAfterNight,
-  recoveryReadout, coverage, lightMinutes, DAY_KINDS, BANDS, bandFor, hrvRange,
-  hrvBand, sleepNeed, sleepBand, rhrBand, todayFindings, patternFindings, nextFixture,
+  isNum, summarise, stageSplit, byWeekday, nightAfter, dayAfterNight,
+  recoveryReadout, coverage, lightMinutes, DAY_KINDS, BANDS, sleepBand,
+  todayFindings, patternFindings, nextFixture,
 } from './recovery.js';
+import {
+  metricOf, recoveryContext, readingOf, lastNight, nightOfText, measureCards, BASELINE_NIGHTS,
+} from './recovery-cards.js';
 
 const RANGES = [
   ['4w', '4 weeks'], ['12w', '12 weeks'], ['26w', '26 weeks'], ['52w', '52 weeks'], ['all', 'All time'],
 ];
-const BASELINE_NIGHTS = 28;
 const toneColor = (tone) => (tone ? token(`tone-${tone}`) : null);
 
 export function mount(host, route, { setQuery }) {
@@ -151,16 +153,9 @@ export function mount(host, route, { setQuery }) {
     };
     const rangeLabel = RANGES.find(([k]) => k === state.range)[1].toLowerCase();
     const week = { from: weekStart(today), to: today };
-    const rhrMean = summarise(baseRows, 'resting_hr');
-    /* Garmin's thresholds: the latest the 28-night rows carry, else the
-       latest in the range — so a window the backfill has not reached yet
-       is still read against something, and says what. */
-    const ctx = {
-      rows, baseRows, tf, span, week, today, rangeLabel,
-      rhrMean: rhrMean.n >= 7 ? rhrMean.value : null,
-      need: sleepNeed(baseRows) || sleepNeed(rows),
-      range: hrvRange(baseRows) || hrvRange(rows),
-    };
+    /* Garmin's thresholds, resolved in one place (`recovery-cards.js`) so
+       the Week page's snapshot reads a night exactly the way this page does. */
+    const ctx = { rows, baseRows, tf, span, week, today, rangeLabel, ...recoveryContext(baseRows, rows) };
 
     for (const f of figs) f.destroy();
     figs = [];
@@ -187,18 +182,8 @@ export function mount(host, route, { setQuery }) {
 
   /* ── reading a figure ────────────────────────────────────────────────── */
 
-  /* The band a value of `key` falls in, for the table and the charts alike.
-     One function so the big number at the top and the column below it can
-     never disagree about what a night was. */
-  function readingOf(ctx, key, value, row = null) {
-    const { rhrMean, need, range } = ctx;
-    const ownNeed = row && isNum(row.sleep_need_min) ? Number(row.sleep_need_min) / 60 : null;
-    if (key === 'sleep_hours') return sleepBand(value, ownNeed || need);
-    if (key === 'hrv_ms') return hrvBand(value, (row && isNum(row.hrv_balanced_low)) ? hrvRange([], row) : range);
-    if (key === 'resting_hr') return rhrBand(value, rhrMean);
-    if (key === 'body_battery_wake') return bandFor('body_battery', value);
-    return bandFor(key, value);
-  }
+  /* `readingOf` and the measure list live in `recovery-cards.js`, shared
+     with the Week page's snapshot. */
 
   const inWeek = (rows, week) => rows.filter((r) => r.date >= week.from && r.date <= week.to);
 
@@ -210,85 +195,24 @@ export function mount(host, route, { setQuery }) {
     return `This week ${show(w)} · ${rangeLabel} ${show(r)}.`;
   }
 
-  /* One entry per measure, in the order the cards and the charts use. The
-     icon and hue are fixed to the measure the way a kind's colour is fixed to
-     its modality, so sleep is the same indigo moon on every surface. */
-  const METRICS = [
-    { key: 'sleep_hours', label: 'Sleep', unit: 'h', digits: 1, icon: 'moon', hue: 'sleep', against: (ctx) => (ctx.need ? `need ${ctx.need.toFixed(1)} h` : null) },
-    { key: 'sleep_score', label: 'Sleep score', unit: '', digits: 0, icon: 'score', hue: 'sleep', against: () => 'Garmin\'s bands' },
-    { key: 'hrv_ms', label: 'HRV', unit: 'ms', digits: 0, icon: 'pulse', hue: 'hrv', against: (ctx) => (ctx.range ? `balanced ${ctx.range.low}–${ctx.range.high} ms` : null) },
-    { key: 'resting_hr', label: 'Resting HR', unit: 'bpm', digits: 0, icon: 'heart', hue: 'rhr', against: (ctx) => (ctx.rhrMean != null ? `28-night mean ${Math.round(ctx.rhrMean)}` : null) },
-    { key: 'readiness', label: 'Readiness', unit: '', digits: 0, icon: 'gauge', hue: 'ink-2', against: () => 'Garmin\'s bands' },
-    { key: 'stress_avg', label: 'Stress', unit: '', digits: 0, icon: 'stress', hue: 'stress', against: () => 'Garmin\'s bands' },
-    { key: 'body_battery_wake', label: 'Body battery', unit: '', digits: 0, icon: 'battery', hue: 'battery', against: () => 'Garmin\'s bands' },
-  ];
-  const metricOf = (key) => METRICS.find((m) => m.key === key);
-
-  /** A band as a tag. No band, no tag. */
-  const tag = (band) => (band
-    ? el('span', { class: `rc-tag${band.tone ? ` tone-${band.tone}` : ' rc-tag-none'}`, text: band.label })
-    : null);
-
   function paintNow(ctx) {
     const { rows, baseRows, week, today, rangeLabel } = ctx;
     clear(pNow.body);
-    const last = latest(baseRows, 'sleep_hours') || latest(baseRows, 'resting_hr');
+    const last = lastNight(baseRows);
     if (!last) { pNow.body.append(emptyNote('No nights on record yet — these arrive with the first Garmin sync.')); return; }
-    const weekRows = inWeek(baseRows, week);
-    const measured = (list) => list.filter((r) => isNum(r.sleep_hours) || isNum(r.resting_hr)).length;
     const showRange = state.range !== '4w';
-    const nightOf = `${fmt.dowDate(addDays(last.date, -1))} → ${fmt.dowDate(last.date)}`;
-
-    const fmtV = (m, v) => (v == null ? '—' : `${Number(v).toFixed(m.digits)}`);
-    const row = (label, s, m) => {
-      const band = readingOf(ctx, m.key, s.value);
-      return el('div', {}, [
-        el('dt', { text: label }),
-        el('dd', { class: band && band.tone ? `is-toned tone-${band.tone}` : null }, [
-          el('span', { class: 'rc-row-v', text: s.value == null ? '—' : `${fmtV(m, s.value)}${m.unit ? ` ${m.unit}` : ''}` }),
-          s.value != null && s.n != null ? document.createTextNode(' ') : null,
-          s.value != null && s.n != null ? el('span', { class: 'rc-n', text: `·${s.n}` }) : null,
-          s.value != null ? document.createTextNode(' ') : null,
-          s.value != null ? tag(band) : null,
-        ].filter(Boolean)),
-      ]);
-    };
-
-    const cards = el('div', { class: 'rc-cards' });
-    for (const m of METRICS) {
-      if (!baseRows.some((r) => isNum(r[m.key]))) continue;
-      const lastRow = latest(baseRows, m.key);
-      const lastVal = lastRow && lastRow.date === last.date ? lastRow[m.key] : null;
-      const band = lastVal != null ? readingOf(ctx, m.key, lastVal, last) : null;
-      const against = m.against(ctx);
-      cards.append(el('article', { class: 'rc-card', style: `--rc-hue:var(--${m.hue})` }, [
-        el('header', { class: 'rc-card-head' }, [
-          icon(m.icon),
-          el('span', { class: 'rc-card-name', text: m.label }),
-          against ? document.createTextNode(' ') : null,
-          against ? el('span', { class: 'rc-against', text: against }) : null,
-        ].filter(Boolean)),
-        el('div', { class: `rc-card-now${band && band.tone ? ` is-toned tone-${band.tone}` : ''}` }, [
-          el('span', { class: 'rc-big-v' }, [
-            el('span', { text: fmtV(m, lastVal) }),
-            m.unit && lastVal != null ? document.createTextNode(' ') : null,
-            m.unit && lastVal != null ? el('u', { text: m.unit }) : null,
-          ].filter(Boolean)),
-          document.createTextNode(' '),
-          lastVal != null ? tag(band) : el('span', { class: 'rc-tag rc-tag-none', text: 'no reading' }),
-        ].filter(Boolean)),
-        lastVal == null ? el('p', { class: 'rc-card-when', text: 'no reading last night' }) : null,
-        el('dl', { class: 'rc-card-rows' }, [
-          /* The count sits beside the value, so the label stays a label. */
-          row('This week', summarise(weekRows, m.key), m),
-          row('Last 28 nights', summarise(baseRows, m.key), m),
-          showRange ? row(rangeLabel[0].toUpperCase() + rangeLabel.slice(1), summarise(rows, m.key), m) : null,
-        ].filter(Boolean)),
-      ]));
-    }
-    pNow.body.prepend(el('p', { class: 'sub rc-nightof' }, [el('b', { text: 'Last night ' }), el('span', { text: `${nightOf}${last.date === today ? '' : ' — nothing newer has synced'}` })]));
+    const nightOf = nightOfText(last, today);
+    const cards = measureCards(ctx, {
+      last, baseRows,
+      rows: [
+        ['This week', inWeek(baseRows, week)],
+        ['Last 28 nights', baseRows],
+        showRange ? [rangeLabel[0].toUpperCase() + rangeLabel.slice(1), rows] : null,
+      ].filter(Boolean),
+    });
+    pNow.body.prepend(el('p', { class: 'sub rc-nightof' }, [el('b', { text: 'Last night ' }), el('span', { text: nightOf })]));
     pNow.body.append(cards, el('p', { class: 'sub', text:
-      `Last night is ${nightOf}${last.date === today ? '' : ' — nothing newer has synced'}. This week is Monday to today; the small count is the nights a mean rests on. `
+      `Last night is ${nightOf}. This week is Monday to today; the small count is the nights a mean rests on. `
       + 'A mean is tagged on the same scale as a single night, so "Fair" beside a 28-night sleep score is the average night, not the best or worst.' }));
   }
 

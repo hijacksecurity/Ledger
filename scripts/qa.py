@@ -54,7 +54,8 @@ MIN_CONTRAST_LARGE = 3.0
 AUDIT_JS = pathlib.Path(__file__).with_name("qa_audit.js").read_text(encoding="utf-8")
 
 
-def run(routes, themes, viewports, shots: pathlib.Path | None, verbose: bool) -> int:
+def run(routes, themes, viewports, shots: pathlib.Path | None, verbose: bool,
+        base: str = BASE) -> int:
     findings: dict[str, list[str]] = defaultdict(list)
 
     with sync_playwright() as pw:
@@ -81,7 +82,7 @@ def run(routes, themes, viewports, shots: pathlib.Path | None, verbose: bool) ->
 
                 for route in routes:
                     errors.clear()
-                    page.goto(f"{BASE}/#/{route}", wait_until="networkidle",
+                    page.goto(f"{base}/#/{route}", wait_until="networkidle",
                               timeout=30000)
                     page.evaluate(
                         "t => document.documentElement.dataset.theme = t", theme)
@@ -131,6 +132,7 @@ def run(routes, themes, viewports, shots: pathlib.Path | None, verbose: bool) ->
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--route", action="append", help="limit to these routes")
+    ap.add_argument("--base", default=BASE, help=f"the app to audit (default {BASE})")
     ap.add_argument("--theme", action="append", choices=THEMES)
     ap.add_argument("--phone-only", action="store_true")
     ap.add_argument("--desktop-only", action="store_true")
@@ -151,6 +153,7 @@ def main() -> int:
         viewports,
         args.shots,
         args.verbose,
+        base=args.base,
     )
     if args.json:
         print(json.dumps({"findings": count}))
