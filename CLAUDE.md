@@ -87,6 +87,12 @@ the index cannot rot quietly.
 API.** Run it after any change to a field, a Garmin mapping rule, an aggregate,
 or a sync. It reports only defects it has proven, with both values side by side.
 
+**`agents/mcp-keeper` keeps `ledger/mcp/` in step with the API.** Run it after
+any endpoint, response shape or field changes. Every GET route has a tool
+(`tests/test_mcp_server.py::test_every_get_endpoint_has_a_tool` fails when one
+is missing), every tool returns what the API returns, and the descriptions and
+server instructions still tell the truth. It fixes drift and reports proof.
+
 **Checks that have caught real bugs, and are worth repeating:**
 
 - Print every row of a table rather than eyeballing it. The second adjacent

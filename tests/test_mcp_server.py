@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -23,6 +24,7 @@ from fastapi.testclient import TestClient
 from ledger.entry import parse_entry
 from ledger.ingest import save_session
 from ledger.mcp import server
+from ledger.mcp import server as mcp_server
 
 MONDAY = date.today() - timedelta(days=date.today().weekday())
 
@@ -105,6 +107,7 @@ def test_every_tool_has_a_description():
 @pytest.mark.parametrize(
     ("tool", "args", "path"),
     [
+        ("health", {}, "/api/health"),
         ("week_summary", {}, "/api/summary"),
         ("week_summary", {"week_of": MONDAY.isoformat(), "weeks": 0},
          f"/api/summary?week_of={MONDAY.isoformat()}&weeks=0"),
@@ -182,6 +185,11 @@ def test_api_error_is_passed_through(api):
         call("trends", metric="nonsense")
 
 
+def test_unknown_week_is_a_clear_404(api):
+    with pytest.raises(Exception, match="404"):
+        call("week", start_date="1999-01-04")
+
+
 def test_unknown_session_is_a_clear_404(api):
     with pytest.raises(Exception, match="404"):
         call("session", session_id=999_999)
@@ -192,6 +200,35 @@ def test_app_down_names_the_fix(monkeypatch):
     monkeypatch.setattr(server, "LEDGER_URL", "http://127.0.0.1:9")
     with pytest.raises(Exception, match="docker compose up -d"):
         call("history")
+
+
+# --- The server keeps up with the API ---------------------------------------
+
+
+def test_every_get_endpoint_has_a_tool():
+    """Drift guard: a GET route added to the API without a tool is the one
+    way this server quietly falls behind. Compared by path, with every path
+    parameter treated alike."""
+    import re
+
+    import ledger.api.main as main
+
+    routes = sorted({
+        r.path for r in main.app.routes
+        if "GET" in getattr(r, "methods", set()) and r.path.startswith("/api")
+    })
+    src = Path(mcp_server.__file__).read_text(encoding="utf-8")
+    norm = lambda p: re.sub(r"\{[^}]+\}", "{x}", p)  # noqa: E731
+    covered = {norm(p) for p in re.findall(r'_get\(\s*f?"([^"?]+)"', src)}
+    missing = [r for r in routes if norm(r) not in covered]
+    assert not missing, f"GET endpoints with no MCP tool: {missing}"
+
+
+def test_resources_serve_the_docs():
+    uris = {str(r.uri) for r in asyncio.run(mcp_server.mcp.list_resources())}
+    assert {"ledger://docs/data-map", "ledger://docs/brief"} <= uris
+    [block] = asyncio.run(mcp_server.mcp.read_resource("ledger://docs/data-map"))
+    assert "Data map" in block.content and block.mime_type == "text/markdown"
 
 
 # --- The API change made for this -----------------------------------------

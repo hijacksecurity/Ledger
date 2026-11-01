@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -40,6 +41,16 @@ INSTRUCTIONS = """\
 Ledger is a single-user training log: soccer, running, biking, lifting,
 rucking and fasting on one load scale. Every tool is a read of the running
 app; nothing is computed in this server.
+
+Ledger is the record. When a Garmin MCP is also connected, answer from
+Ledger first for anything about training, sessions, load, ACWR, matches,
+leagues, habits, weight, or the watch's nightly numbers (sleep, HRV,
+resting HR, readiness, body battery, stress): Ledger holds them already
+cleaned, calibrated and on the app's own scales, and a figure quoted from
+here is the figure on the page. Go to the Garmin MCP only for what Ledger
+does not store — per-activity detail such as splits, laps, HR time series,
+weather, gear, device state — or when a Ledger tool says the app is down.
+Never combine the two sources into one figure.
 
 Conventions the data follows:
 - Dates are ISO (YYYY-MM-DD). Weeks run Monday to Sunday; `week_of` accepts
@@ -57,6 +68,10 @@ Conventions the data follows:
   run alone.
 - The Scoreboard page (#/score) is deliberately not exposed. Do not grade a
   week; show the figures.
+- Leagues: `leagues` is the seasons being played; `league_seasons` is every
+  season on record with its final table, results and the goals logged.
+- What a field means, and which surfaces depend on it, is in the resource
+  `ledger://docs/data-map`; the design rules are in `ledger://docs/brief`.
 
 The app may be down. A tool error naming `docker compose up -d` means exactly
 that, and there is nothing to retry until it is started.
@@ -95,6 +110,16 @@ async def _get(path: str, **params: Any) -> Any:
     if r.headers.get("content-type", "").startswith("application/json"):
         return r.json()
     return r.text
+
+
+# --- The app itself -------------------------------------------------------
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def health() -> dict[str, Any]:
+    """Is the app up, and which database it is serving. The cheapest call;
+    use it before anything else when a tool has just failed."""
+    return await _get("/api/health")
 
 
 # --- The week -------------------------------------------------------------
@@ -276,6 +301,14 @@ async def weeks(from_date: str | None = None, to_date: str | None = None) -> dic
 
 
 @mcp.tool(annotations=READ_ONLY)
+async def week(start_date: str) -> dict[str, Any]:
+    """One week's header: week number, bodyweight, cumulative activities per
+    week, and the header note. `start_date` is that week's Monday. 404 when
+    the notebook has no header for that week."""
+    return await _get(f"/api/weeks/{start_date}")
+
+
+@mcp.tool(annotations=READ_ONLY)
 async def week_notes(start_date: str) -> dict[str, Any]:
     """Dated notes attached to one week. `start_date` is that week's Monday."""
     return await _get(f"/api/weeks/{start_date}/notes")
@@ -329,6 +362,27 @@ async def sync_status() -> dict[str, Any]:
 async def sync_log(limit: int = 50) -> dict[str, Any]:
     """The most recent sync log entries, newest first."""
     return await _get("/api/sync-log", limit=limit)
+
+
+# --- Resources: what the fields mean ---------------------------------------
+#
+# The data map indexes every field to the surfaces that read it and the traps
+# each has caused; the brief holds the design rules. A client that reads
+# these reasons about the record the way the app does.
+
+_DOCS = Path(__file__).resolve().parents[2] / "docs"
+
+
+@mcp.resource("ledger://docs/data-map", mime_type="text/markdown")
+def data_map() -> str:
+    """docs/DATA-MAP.md — every field, the surfaces that read it, the traps."""
+    return (_DOCS / "DATA-MAP.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("ledger://docs/brief", mime_type="text/markdown")
+def brief() -> str:
+    """docs/BRIEF.md — what the app is for and the rules it is built on."""
+    return (_DOCS / "BRIEF.md").read_text(encoding="utf-8")
 
 
 # --- Writes: not registered -----------------------------------------------
