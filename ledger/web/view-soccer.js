@@ -67,7 +67,7 @@ export function mount(host, route, { setQuery }) {
   /* Every session on record, under the live cards: a finished one with how
      it ended — place, record, goals — and the one being played with the
      table so far. Sessions run year round; this is where they add up. */
-  const pSeasons = panel({ title: 'Seasons', sub: ' ', wide: true, accent: 'soccer' });
+  const pSeasons = panel({ title: 'Seasons', sub: ' ', wide: true, accent: 'soccer', tools: marksKey() });
 
   /* The refresh control for the league cards. Everything else on this page is
      computed from sessions you typed; these two cards are scraped, so they are
@@ -87,7 +87,7 @@ export function mount(host, route, { setQuery }) {
     sportTabs('soccer'), filters, statsHost,
     sectionRule(
       'Leagues', 'where you sit, who is next, and who they are — pulled from the league site',
-      [leagueStamp, leagueBtn],
+      [marksKey(), leagueStamp, leagueBtn],
     ),
     pLeague, pSeasons,
     sectionRule('Your record', 'across every fixture'),
@@ -508,7 +508,7 @@ export function mount(host, route, { setQuery }) {
     return card;
   }
 
-  const recCell = (k, v, strong) => el('div', { class: `lg-rc${strong ? ' is-pts' : ''}` }, [
+  const recCell = (k, v, strong) => el('div', { class: `lg-rc lg-rc-${k}${strong ? ' is-pts' : ''}` }, [
     el('dt', { text: k }), el('dd', { class: 'num', text: v == null ? '—' : String(v) }),
   ]);
 
@@ -613,10 +613,7 @@ export function mount(host, route, { setQuery }) {
 
   function fixtureList(lg) {
     const wrap = el('div', { class: 'lg-fixtures' });
-    const any = lg.my_fixtures.some((f) => f.played && f.logged && ((f.logged.goals || 0) + (f.logged.assists || 0)));
-    wrap.append(el('div', { class: 'lbl lg-fx-head' }, [
-      el('span', { text: 'Your fixtures' }), any ? marksKey() : null,
-    ].filter(Boolean)));
+    wrap.append(el('div', { class: 'lbl', text: 'Your fixtures' }));
     for (const f of lg.my_fixtures) {
       const home = f.home_game != null ? f.home_game : f.home === lg.my_team;
       const mine = home ? f.home_score : f.away_score;
@@ -664,11 +661,13 @@ export function mount(host, route, { setQuery }) {
     ]);
   }
 
-  /** "● goal  ○ assist" — once, above a list that has any. */
-  const marksKey = () => el('span', { class: 'lg-fx-key', 'aria-hidden': 'true' }, [
-    icon('goal', 'lg-goal'), el('span', { text: 'goal' }),
-    icon('assist', 'lg-assist'), el('span', { text: 'assist' }),
-  ]);
+  /** "● goal  ○ assist" — once per widget, never down every list. */
+  function marksKey() {
+    return el('span', { class: 'lg-fx-key', 'aria-hidden': 'true' }, [
+      icon('goal', 'lg-goal'), el('span', { text: 'your goal' }),
+      icon('assist', 'lg-assist'), el('span', { text: 'assist' }),
+    ]);
+  }
 
   const FIXTURE_LABEL = { coed: 'Coed', mens: "Men's league", pickup: 'Pickup' };
   const FIXTURE_DAY = { coed: 'Mondays', mens: 'Thursdays', pickup: 'Tuesdays' };
