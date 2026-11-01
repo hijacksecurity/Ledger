@@ -239,6 +239,14 @@ async def leagues() -> dict[str, Any]:
     return await _get("/api/leagues")
 
 
+@mcp.tool(annotations=READ_ONLY)
+async def league_seasons() -> dict[str, Any]:
+    """Every league season on record, newest first: final position and
+    record for a finished one, the table so far for the one being played,
+    every result, and the goals and assists logged inside its dates."""
+    return await _get("/api/leagues/seasons")
+
+
 # --- Recovery -------------------------------------------------------------
 
 

@@ -1122,6 +1122,28 @@ span.daycell-fig.is-none {
 .lg-line { font-size: var(--t-sm); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
 .lg-block { display: grid; gap: .35rem; }
+
+/* Seasons: one row per session on record. A finished one carries its final
+   table; the live one, the table so far, with a soccer hairline to say so.
+   Built from the league card's own parts — tag, place, record, form. */
+.ss-list { display: grid; gap: .6rem; }
+.ss-row {
+  display: grid; gap: .5rem; padding: .75rem .9rem; min-width: 0;
+  border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2);
+}
+.ss-row.is-live { border-color: color-mix(in srgb, var(--k-soccer) 40%, var(--line)); }
+.ss-head { display: flex; align-items: center; gap: .6rem; min-width: 0; flex-wrap: wrap; }
+.ss-name {
+  flex: 1 1 12rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600; color: var(--ink); text-decoration: none;
+}
+.ss-name:hover { text-decoration: underline; }
+.ss-state { font-size: var(--t-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--k-soccer); }
+.ss-state.is-final { color: var(--ink-3); }
+.ss-body { display: flex; align-items: center; gap: .85rem; flex-wrap: wrap; }
+.ss-of { min-width: 0; flex: 1 1 10rem; }
+.ss-span { font-size: var(--t-sm); color: var(--ink-2); }
+.ss-line { flex-basis: 100%; margin: 0; }
 .lg-form { gap: 3px; }
 .lg-form .form-cell { width: 1.7rem; height: 1.7rem; font-size: var(--t-xs); }
 

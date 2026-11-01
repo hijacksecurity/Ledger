@@ -64,6 +64,10 @@ export function mount(host, route, { setQuery }) {
      the same heading printed twice. The rule keeps the heading, the panel is
      reduced to a container, and the cards sit one box shallower. */
   const pLeague = panel({ wide: true, className: 'panel-bare' });
+  /* Every session on record, under the live cards: a finished one with how
+     it ended — place, record, goals — and the one being played with the
+     table so far. Sessions run year round; this is where they add up. */
+  const pSeasons = panel({ title: 'Seasons', sub: ' ', wide: true, accent: 'soccer' });
 
   /* The refresh control for the league cards. Everything else on this page is
      computed from sessions you typed; these two cards are scraped, so they are
@@ -85,7 +89,7 @@ export function mount(host, route, { setQuery }) {
       'Leagues', 'where you sit, who is next, and who they are — pulled from the league site',
       [leagueStamp, leagueBtn],
     ),
-    pLeague,
+    pLeague, pSeasons,
     sectionRule('Your record', 'across every fixture'),
     pTeams, pInvolve,
     el('div', { class: 'grid-2' }, [pRate, pScoring]),
@@ -94,6 +98,8 @@ export function mount(host, route, { setQuery }) {
     pRead, pMatches,
   );
   skeletonBlock(96, statsHost);
+  skeletonBlock(160, pSeasons.body);
+  loadSeasons();
   skeletonBlock(220, pTeams.body);
   skeletonBlock(240, pInvolve.body);
   skeletonBlock(200, pRate.body);
@@ -161,6 +167,71 @@ export function mount(host, route, { setQuery }) {
     pLeague.body.append(grid);
   }
 
+  async function loadSeasons() {
+    const res = await api('/api/leagues/seasons');
+    if (!alive) return;
+    clear(pSeasons.body);
+    if (!res.ok) { panelError(pSeasons.body, res, 'Seasons'); return; }
+    paintSeasons(res.data.seasons || []);
+  }
+
+  function paintSeasons(list) {
+    const done = list.filter((x) => x.complete).length;
+    pSeasons.head.querySelector('.sub').textContent = list.length
+      ? `${done} finished, ${list.length - done} being played — newest first, the final table for a finished one`
+      : ' ';
+    if (!list.length) {
+      pSeasons.body.append(emptyNote('No seasons on record yet — they arrive with the first league pull.'));
+      return;
+    }
+    const host = el('div', { class: 'ss-list' });
+    for (const x of list) host.append(seasonRow(x));
+    pSeasons.body.append(host);
+  }
+
+  /** One season: its name and state, the place and record, the results. */
+  function seasonRow(x) {
+    const r = x.record || {};
+    const pos = x.position;
+    const span = x.start && x.end
+      ? `${fmt.date(x.start)} – ${fmt.dateY(x.end)}`
+      : 'schedule not published yet';
+    const lg = x.logged || { games: 0, goals: 0, assists: 0 };
+    const row = el('article', { class: `ss-row${x.complete ? ' is-final' : ' is-live'}` });
+    row.append(el('div', { class: 'ss-head' }, [
+      el('span', { class: `lg-tag lg-tag-${x.fixture}`, text: FIXTURE_LABEL[x.fixture] || x.fixture }),
+      el('a', { class: 'ss-name', href: x.url, target: '_blank', rel: 'noopener noreferrer', text: x.name, title: x.name }),
+      el('span', { class: `ss-state${x.complete ? ' is-final' : ''}`, text: x.complete ? 'Final' : 'In progress' }),
+    ]));
+    row.append(el('div', { class: 'ss-body' }, [
+      el('div', { class: 'lg-posbox' }, [
+        el('span', { class: 'lg-pos', text: pos ? String(pos) : '—' }),
+        el('span', { class: 'lg-posord', text: pos ? ordSuffix(pos) : '' }),
+      ]),
+      el('div', { class: 'ss-of' }, [
+        el('div', { class: 'lg-of', text: pos ? `of ${x.teams} teams` : `${x.teams} teams` }),
+        el('div', { class: 'ss-span', text: span }),
+      ]),
+      el('dl', { class: 'lg-rec' }, [
+        recCell('W', r.w), recCell('D', r.t), recCell('L', r.l), recCell('PTS', r.pts, true),
+      ]),
+      el('p', { class: 'lg-line ss-line', text:
+        `${r.gp ?? 0} played · ${r.gf ?? 0} scored, ${r.ga ?? 0} conceded · ${fmt.signed(r.gd ?? 0, '', 0)} difference`
+        + (lg.games ? ` · ${lg.goals} goal${lg.goals === 1 ? '' : 's'}, ${lg.assists} assist${lg.assists === 1 ? '' : 's'} in ${lg.games} logged` : '') }),
+    ]));
+    if ((x.results || []).length) {
+      const strip = el('div', { class: 'formstrip lg-form' });
+      for (const f of x.results) {
+        strip.append(el('span', {
+          class: `form-cell form-${f.result}`,
+          title: `${fmt.dateY(f.date)} · ${f.home_game ? 'vs' : 'at'} ${f.opponent} · ${f.gf}–${f.ga}`,
+        }, [el('span', { text: f.result })]));
+      }
+      row.append(strip);
+    }
+    return row;
+  }
+
   /** The stamp and the button, which only ever describe the same one thing. */
   function paintLeagueBar(list, refreshing) {
     /* Disabled only while *this* page is waiting on its own POST. A scrape
@@ -212,6 +283,7 @@ export function mount(host, route, { setQuery }) {
     const res = await api('/api/leagues/refresh', { method: 'POST' });
     busy(false);
     leagueBusy = false;
+    loadSeasons();
     if (!alive) return;
 
     if (!res.ok) {

@@ -280,6 +280,8 @@ and `fixture_source`.
 | `leagues.configured()` | the current season per fixture; the seeds only until a row exists |
 | `leagues.discover()` | the only thing that archives a season and names its successor |
 | `ledger leagues` (CLI) | prints any switch |
+| `ledger leagues --move FIXTURE LEAGUE` | the hand move: same writes as `discover()`, same rule (the team must be in the new standings); needed since the venue's listing page became a facility search in November 2026 |
+| Seasons | `#/soccer` — every season, archived and current, newest first: `leagues.seasons()` via `GET /api/leagues/seasons`. Position and record are the stored standing row (the final table for an archived season); results are `league_fixture`; the logged goals/assists are `views.soccer()` over the season's dates, filtered to the fixture, so they equal the Matches table for that window |
 
 **Trap:** a fixture moves to a new league **only** when that league's standings
 contain `my_team` *and* it runs later than the season being replaced. Both
@@ -299,6 +301,12 @@ halves are load-bearing and both were proven by failure:
 * Matching on the team alone walks *backwards*. The first live run moved the
   men's fixture from Summer to the **Spring** session, because the venue still
   publishes Spring and Harbour Lights are in its table.
+
+**Trap:** the ezleagues listing (`LISTING_URL`) stopped listing leagues in
+November 2026 — every path on the venue host lands on a facility search — so
+`discover()` cannot find a successor until a new listing source is found. A
+new session is attached with `ledger leagues --move`; the league pages
+themselves still parse.
 
 **Trap:** `DEFAULT_LEAGUES` in `ledger/leagues.py` is a seed, not the config.
 Once a league row exists the database is the authority — editing the constant
@@ -475,6 +483,7 @@ nobody indexed is a panel nobody will think to re-check when its data changes.
 
 ### `#/soccer`
 
+- Seasons
 - By fixture
 - Goal involvement
 - Involvement per match

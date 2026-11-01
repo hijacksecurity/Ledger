@@ -748,6 +748,13 @@ def get_leagues(background: BackgroundTasks, conn: DB) -> dict[str, Any]:
     return {"leagues": leagues.read(conn), "refreshing": _league_refreshing}
 
 
+@app.get("/api/leagues/seasons")
+def league_seasons(conn: DB) -> dict[str, Any]:
+    """Every season on record, newest first: the final table of a finished
+    one, the table so far of the one being played."""
+    return {"seasons": leagues.seasons(conn)}
+
+
 @app.post("/api/leagues/refresh")
 def refresh_leagues(conn: DB) -> dict[str, Any]:
     """Explicit refresh: always fetches, and blocks until it has.

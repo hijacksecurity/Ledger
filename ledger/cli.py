@@ -170,6 +170,16 @@ def cmd_leagues(args: argparse.Namespace, cfg: Config) -> int:
     from ledger import leagues
 
     conn = open_db(cfg.db_path)
+    if args.move:
+        fixture, target = args.move
+        try:
+            sw = leagues.move(conn, fixture, target)
+        except Exception as exc:
+            print(f"not moved: {exc}", file=sys.stderr)
+            return 1
+        print(f"{sw['my_team']:<18} moved {sw['fixture']}: "
+              f"{sw['from']} -> {sw['to']} · {sw['name']}")
+        print()
     if not args.show:
         for team, outcome in leagues.refresh_all(conn):
             print(f"{team:<18} {outcome}")
@@ -391,6 +401,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("leagues", help="refresh league tables and fixtures")
     p.add_argument("--show", action="store_true", help="print what is stored, fetch nothing")
+    p.add_argument(
+        "--move", nargs=2, metavar=("FIXTURE", "LEAGUE"),
+        help="move a fixture (coed, mens) onto a new season by hand: LEAGUE is the "
+             "league page URL, its id/slug path, or daysmart:<id>; the team must be "
+             "in its standings; the old season is archived",
+    )
     p.set_defaults(fn=cmd_leagues)
 
     p = sub.add_parser("sync", help="incremental Garmin sync")

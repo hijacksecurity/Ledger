@@ -1045,3 +1045,141 @@ def _ordinal(n: int | None) -> str:
         return "Unplaced"
     suffix = "th" if 11 <= n % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
     return f"{n}{suffix}"
+
+
+# --- moving by hand, and the seasons on record ------------------------------
+
+
+def move(conn: sqlite3.Connection, fixture: str, target: str, *,
+         fetcher=None, getter=None) -> dict[str, str]:
+    """Move a fixture onto a league named by hand.
+
+    `discover()` finds a successor through the venue's listing page, and in
+    November 2026 that page turned into a facility search with no league on
+    it, so a new session has to be pointed at. `target` is the league page's
+    URL, its `{id}/{slug}` path, or `daysmart:<id>`.
+
+    The one rule discovery lives by still holds here: the team has to be in
+    the new league's standings, or nothing moves. The old season is archived,
+    never deleted, exactly as `discover()` does it.
+    """
+    spec = next((c for c in configured(conn) if c["fixture"] == fixture), None)
+    if spec is None:
+        raise ValueError(f"no current season for fixture {fixture!r}")
+    target = target.strip()
+    if is_daysmart(target):
+        league = daysmart_league(daysmart_id(target), getter or get_json)
+    else:
+        path = _path_of(target) if "/leagues/" in target else target.removesuffix(".aspx")
+        if not path:
+            raise ValueError(f"cannot read a league from {target!r}")
+        pid = path.split("/", 1)[0]
+        url = BASE.format(path=path)
+        league = parse((fetcher or fetch)(pid, url), pid, url)
+    if league.provider_id == spec["provider_id"]:
+        raise ValueError(f"{league.provider_id} is already the current {fixture} season")
+    team = next((st.team for st in league.standings if same_team(st.team, spec["my_team"])), None)
+    if team is None:
+        raise ValueError(
+            f"{spec['my_team']} is not in the standings of {league.name!r} — not moving"
+        )
+
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+    conn.execute(
+        "UPDATE league SET archived_at = ? WHERE provider_id = ? AND archived_at IS NULL",
+        (now, spec["provider_id"]),
+    )
+    upsert(conn, league, team, fixture)
+    conn.execute(
+        "UPDATE league SET path = ?, archived_at = NULL WHERE provider_id = ?",
+        (_path_for(league), league.provider_id),
+    )
+    return {
+        "fixture": fixture, "my_team": team,
+        "from": spec["provider_id"], "to": league.provider_id, "name": league.name,
+    }
+
+
+def seasons(conn: sqlite3.Connection, *, today: str | None = None) -> list[dict[str, Any]]:
+    """Every season on record, newest first.
+
+    An archived season carries the table as it stood when it was replaced —
+    its final table — and the one being played carries the table so far. Each
+    comes with the team's own row, every result, and what the log holds for
+    that fixture inside the season's dates: matches logged, goals, assists.
+    The log is read the way the Soccer page reads it, so a goal counted here
+    is a goal counted there.
+    """
+    from ledger.report import views  # here, not at the top: views imports nothing from this module
+
+    today = today or date.today().isoformat()
+    out: list[dict[str, Any]] = []
+    for lg in conn.execute("SELECT * FROM league"):
+        mine = lg["my_team"].lower()
+        standings = [
+            dict(r) for r in conn.execute(
+                "SELECT position, team, gp, w, l, t, gf, ga, pts, gd, wp "
+                "FROM league_standing WHERE league_id = ? ORDER BY position", (lg["id"],),
+            )
+        ]
+        fixtures = [
+            dict(r) for r in conn.execute(
+                "SELECT date, home, away, home_score, away_score, played "
+                "FROM league_fixture WHERE league_id = ? ORDER BY date, home", (lg["id"],),
+            )
+        ]
+        me = next((st for st in standings if st["team"].lower() == mine), None)
+        my_fx = [
+            f for f in fixtures
+            if mine in (f["home"] or "").lower() or mine in (f["away"] or "").lower()
+        ]
+        results = []
+        for f in my_fx:
+            if not f["played"] or f["home_score"] is None or f["away_score"] is None:
+                continue
+            home = mine in (f["home"] or "").lower()
+            gf, ga = ((f["home_score"], f["away_score"]) if home
+                      else (f["away_score"], f["home_score"]))
+            results.append({
+                "date": f["date"], "opponent": f["away"] if home else f["home"],
+                "home_game": home, "gf": gf, "ga": ga,
+                "result": "W" if gf > ga else "L" if gf < ga else "D",
+            })
+        dates = sorted(f["date"] for f in fixtures if f["date"])
+        start, end = (dates[0], dates[-1]) if dates else (None, None)
+        archived = lg["archived_at"] is not None
+
+        logged = {"games": 0, "goals": 0, "assists": 0}
+        if start and end:
+            for g in views.soccer(conn, start, end).get("games", []):
+                if g.get("pickup") or g.get("fixture") != lg["fixture"]:
+                    continue
+                logged["games"] += 1
+                logged["goals"] += int(g.get("goals") or 0)
+                logged["assists"] += int(g.get("assists") or 0)
+
+        out.append({
+            "provider_id": lg["provider_id"], "name": lg["name"], "fixture": lg["fixture"],
+            "my_team": lg["my_team"], "url": lg["url"],
+            "archived": archived, "archived_at": lg["archived_at"],
+            "start": start, "end": end,
+            # Finished: archived, or every one of our fixtures played and the
+            # last date behind us. A season with the schedule not yet posted
+            # is in progress, not finished.
+            "complete": archived or (bool(end) and end < today and bool(my_fx)
+                                     and all(f["played"] for f in my_fx)),
+            "played": len(results), "scheduled": len(my_fx),
+            "position": me["position"] if me and any(st["gp"] for st in standings) else None,
+            "teams": len(standings),
+            "record": (
+                {k: me.get(k) for k in ("gp", "w", "t", "l", "gf", "ga", "gd", "pts", "wp")}
+                if me else None
+            ),
+            "results": results,
+            "logged": logged,
+        })
+    # The seasons being played first — one with no schedule posted yet is the
+    # newest of all — then the finished ones, newest first.
+    out.sort(key=lambda x: (not x["complete"], x["end"] or "9999-99-99", x["provider_id"]),
+             reverse=True)
+    return out

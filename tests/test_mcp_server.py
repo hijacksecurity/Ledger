@@ -125,6 +125,7 @@ def test_every_tool_has_a_description():
          f"/api/weeks/{MONDAY.isoformat()}/notes"),
         ("habits", {}, "/api/habits"),
         ("habits_trend", {"weeks": 8}, "/api/habits/trend?weeks=8"),
+        ("league_seasons", {}, "/api/leagues/seasons"),
         ("sync_status", {}, "/api/sync-status"),
         ("sync_log", {"limit": 3}, "/api/sync-log?limit=3"),
     ],

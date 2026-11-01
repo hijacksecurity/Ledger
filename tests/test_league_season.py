@@ -323,3 +323,68 @@ def test_cards_keep_their_places_when_one_fixture_rolls_over(conn):
     leagues.upsert(conn, _league("200", "Coed Fall", ["Sparrosw FC", "Y"],
                                  ["2026-10-26"], played=False), "Sparrosw FC", "coed")
     assert [lg["fixture"] for lg in leagues.read(conn)] == ["coed", "mens"]
+
+
+# --- moving by hand ----------------------------------------------------------
+
+
+def _move(conn, fixture, target, pages):
+    """Run move() against stubbed league pages. No network."""
+    orig = leagues.parse
+    leagues.parse = lambda page, pid, url: pages[pid]
+    try:
+        return leagues.move(conn, fixture, target, fetcher=lambda pid, url: pid)
+    finally:
+        leagues.parse = orig
+
+
+def test_a_season_can_be_moved_by_hand_from_its_page_url(seeded):
+    url = f"https://example.ezleagues.ezfacility.com/leagues/{FALL}/Fall-Session-Coed-Open.aspx"
+    sw = _move(seeded, "coed", url, {FALL: FALL_LEAGUE})
+
+    assert sw["from"] == SUMMER and sw["to"] == FALL and sw["fixture"] == "coed"
+    assert [c["provider_id"] for c in leagues.configured(seeded)] == [FALL]
+    # The path is read off the page the parser returned, not off the URL typed.
+    assert leagues.configured(seeded)[0]["path"] == leagues._path_of(FALL_LEAGUE.url)
+    old = seeded.execute(
+        "SELECT archived_at FROM league WHERE provider_id = ?", (SUMMER,)
+    ).fetchone()
+    assert old["archived_at"] is not None
+
+
+def test_a_hand_move_still_refuses_a_league_without_the_team(seeded):
+    with pytest.raises(ValueError, match="not in the standings"):
+        _move(seeded, "coed", f"{COED_30}/slug", {COED_30: COED_30_LEAGUE})
+    assert [c["provider_id"] for c in leagues.configured(seeded)] == [SUMMER]
+
+
+def test_a_hand_move_needs_a_current_season_for_that_fixture(seeded):
+    with pytest.raises(ValueError, match="no current season"):
+        _move(seeded, "mens", f"{FALL}/slug", {FALL: FALL_LEAGUE})
+
+
+# --- the seasons on record --------------------------------------------------
+
+
+def test_seasons_list_every_season_newest_first_with_the_final_table(seeded):
+    _move(seeded, "coed", f"{FALL}/slug", {FALL: FALL_LEAGUE})
+    ss = leagues.seasons(seeded, today=TODAY)
+
+    assert [x["provider_id"] for x in ss] == [FALL, SUMMER]
+    summer, fall = ss[1], ss[0]
+    assert summer["archived"] is True and summer["complete"] is True
+    assert summer["start"] == "2026-08-31" and summer["end"] == "2026-09-14"
+    me = next(st for st in SUMMER_LEAGUE.standings if st.team == "Sparrows FC")
+    assert summer["position"] == me.position
+    assert summer["teams"] == len(SUMMER_LEAGUE.standings)
+    assert summer["record"]["w"] == 3 and summer["record"]["pts"] == 10
+    assert summer["logged"] == {"games": 0, "goals": 0, "assists": 0}
+    assert fall["archived"] is False and fall["complete"] is False
+    assert fall["played"] == 0 and fall["scheduled"] == 2
+
+
+def test_a_season_with_no_schedule_yet_is_in_progress_not_finished(conn):
+    bare = _league(FALL, "Winter Session Coed Open", ["Sparrows FC", "Shockers"], [])
+    leagues.upsert(conn, bare, "Sparrows FC", "coed")
+    [x] = leagues.seasons(conn, today=TODAY)
+    assert x["start"] is None and x["complete"] is False and x["position"] is not None
