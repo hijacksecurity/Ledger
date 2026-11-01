@@ -409,3 +409,45 @@ def test_a_season_with_no_schedule_yet_is_in_progress_not_finished(conn):
     leagues.upsert(conn, bare, "Sparrows FC", "coed")
     [x] = leagues.seasons(conn, today=TODAY)
     assert x["start"] is None and x["complete"] is False and x["position"] is not None
+
+
+# --- the schedule names the fixture ------------------------------------------
+
+
+def test_a_league_game_on_an_odd_weekday_is_read_from_the_schedule(conn):
+    """2026-09-29 is a Tuesday, which the weekday rule calls pickup. The
+    league had a coed game that night, so the match is coed — and its goals
+    count for the season."""
+    from ledger.entry import parse_entry
+    from ledger.ingest import save_session
+    from ledger.report import views
+
+    moved = _league(FALL, "Fall Session Coed Open", ["Sparrows FC", "Shockers"], ["2026-09-29"])
+    leagues.upsert(conn, moved, "Sparrows FC", "coed")
+    save_session(conn, parse_entry("2026-09-29 soccer W5:4 2g1a 60min rpe=7")[0])
+
+    [game] = views.soccer(conn, "2026-09-29", "2026-09-29")["games"]
+    assert game["fixture"] == "coed" and game["fixture_source"] == "schedule"
+    assert game["pickup"] is False
+
+    [season] = leagues.seasons(conn, today="2026-10-01")
+    assert season["logged"] == {"games": 1, "goals": 2, "assists": 1}
+    assert season["my_fixtures"][0]["logged"] == {"games": 1, "goals": 2, "assists": 1}
+
+
+def test_an_explicit_fixture_still_beats_the_schedule(conn):
+    from ledger.entry import parse_entry
+    from ledger.ingest import save_session
+    from ledger.report import views
+
+    import json
+
+    from ledger.db import queries as q
+
+    leagues.upsert(conn, _league(FALL, "Fall Session Coed Open", ["Sparrows FC", "Shockers"],
+                                 ["2026-09-29"]), "Sparrows FC", "coed")
+    sid, _ = save_session(conn, parse_entry("2026-09-29 soccer W5:4 60min rpe=7")[0])
+    detail = json.loads(q.session_by_id(conn, sid)["detail"] or "{}")
+    q.update_session(conn, sid, {"detail": json.dumps({**detail, "team": "pickup"})})
+    [game] = views.soccer(conn, "2026-09-29", "2026-09-29")["games"]
+    assert game["fixture"] == "pickup" and game["fixture_source"] == "set"

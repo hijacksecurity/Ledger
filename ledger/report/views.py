@@ -211,6 +211,7 @@ def soccer(
     games: list[dict[str, Any]] = []
     record = {"W": 0, "L": 0, "D": 0}
     goals = assists = gf = ga = 0
+    scheduled = _scheduled_fixtures(conn, start, end)
 
     for r in q.soccer_games(conn, start, end):
         d = detail_of(r["detail"])
@@ -248,9 +249,9 @@ def soccer(
                 # narrower rule (explicit field or the word in the note), so
                 # the read-out counted 6 pickup matches while the By-fixture
                 # table counted 8 — same word, two definitions, one page.
-                "fixture": _resolve_fixture(r["date"], d, note),
-                "fixture_source": _fixture_source(d, note),
-                "pickup": _resolve_fixture(r["date"], d, note) == "pickup",
+                "fixture": _resolve_fixture(r["date"], d, note, scheduled),
+                "fixture_source": _fixture_source(d, note, r["date"], scheduled),
+                "pickup": _resolve_fixture(r["date"], d, note, scheduled) == "pickup",
                 "duration_min": r["duration_min"],
                 "rpe": r["rpe"],
                 "notes": r["notes"],
@@ -329,17 +330,53 @@ _FIXTURE_NOTE = (
 )
 
 
-def _fixture_source(detail: dict[str, Any], note: str) -> str:
+def _scheduled_fixtures(conn: sqlite3.Connection, start: str, end: str) -> dict[str, str]:
+    """Which fixture the league schedule had the team playing, by date.
+
+    Every season on record, archived ones included: a match is read against
+    the schedule of the season it was played in. The weekday rule is a guess
+    about the calendar; this is the calendar.
+    """
+    out: dict[str, str] = {}
+    rows = conn.execute(
+        "SELECT f.date, l.fixture, l.my_team, f.home, f.away "
+        "FROM league_fixture f JOIN league l ON l.id = f.league_id "
+        "WHERE f.date BETWEEN ? AND ? AND l.fixture IS NOT NULL",
+        (start, end),
+    )
+    for r in rows:
+        mine = (r["my_team"] or "").lower()
+        if mine and (mine in (r["home"] or "").lower() or mine in (r["away"] or "").lower()):
+            out[r["date"]] = r["fixture"]
+    return out
+
+
+def _fixture_source(
+    detail: dict[str, Any], note: str, day: str = "", scheduled: dict[str, str] | None = None,
+) -> str:
     """Where the fixture came from, so the page can say which were inferred."""
     if detail.get("team") in _FIXTURE_KEYS:
         return "set"
+    if scheduled and day in scheduled:
+        return "schedule"
     return next((("note") for word, _ in _FIXTURE_NOTE if word in note), "weekday")
 
 
-def _resolve_fixture(day: str, detail: dict[str, Any], note: str) -> str:
-    """Explicit field, then a note keyword, then the weekday. Never null."""
+def _resolve_fixture(
+    day: str, detail: dict[str, Any], note: str, scheduled: dict[str, str] | None = None,
+) -> str:
+    """Explicit field, then the league schedule, then a note keyword, then
+    the weekday. Never null.
+
+    The schedule sits above the weekday because a league moves a game now
+    and then — a coed match played on a Tuesday was being filed as pickup,
+    and its goals left out of the season — and above the note because a
+    scoreline logged on a league date is that league's match.
+    """
     if detail.get("team") in _FIXTURE_KEYS:
         return str(detail["team"])
+    if scheduled and day in scheduled:
+        return scheduled[day]
     for word, team in _FIXTURE_NOTE:
         if word in note:
             return team

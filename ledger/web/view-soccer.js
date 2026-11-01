@@ -627,13 +627,13 @@ export function mount(host, route, { setQuery }) {
         el('span', { class: 'lg-fx-date num', text: fmt.dowDate(f.date) }),
         el('span', { class: 'lg-fx-ha', text: home ? 'vs' : 'at' }),
         el('span', { class: 'lg-fx-opp', text: f.opponent || (home ? f.away : f.home) }),
+        myMarks(f),
         f.played
           ? el('span', { class: 'lg-fx-res' }, [
             el('span', { class: `res res-${r}`, text: r || '·' }),
             el('span', { class: 'num', text: mine == null ? '' : ` ${mine}–${theirs}` }),
           ])
           : el('span', { class: 'lg-fx-time num', text: f.time_text || '' }),
-        myMarks(f),
         venueBadge(f.venue),
       ]));
     }
@@ -659,15 +659,15 @@ export function mount(host, route, { setQuery }) {
       title: `You: ${g} goal${g === 1 ? '' : 's'}, ${a} assist${a === 1 ? '' : 's'}`,
       role: 'img', 'aria-label': `You: ${g} goal${g === 1 ? '' : 's'}, ${a} assist${a === 1 ? '' : 's'}`,
     }, [
-      ...marks(g, () => icon('soccer', 'lg-goal')),
-      ...marks(a, () => el('i', { class: 'lg-assist' })),
+      ...marks(g, () => icon('goal', 'lg-goal')),
+      ...marks(a, () => icon('assist', 'lg-assist')),
     ]);
   }
 
   /** "● goal  ○ assist" — once, above a list that has any. */
   const marksKey = () => el('span', { class: 'lg-fx-key', 'aria-hidden': 'true' }, [
-    icon('soccer', 'lg-goal'), el('span', { text: 'your goal' }),
-    el('i', { class: 'lg-assist' }), el('span', { text: 'your assist' }),
+    icon('goal', 'lg-goal'), el('span', { text: 'goal' }),
+    icon('assist', 'lg-assist'), el('span', { text: 'assist' }),
   ]);
 
   const FIXTURE_LABEL = { coed: 'Coed', mens: "Men's league", pickup: 'Pickup' };

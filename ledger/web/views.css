@@ -1283,15 +1283,13 @@ span.daycell-fig.is-none {
 /* Your marks on a game: a ball per goal, a ring per assist, the way a match
    centre prints a scorer. Blank when you had neither. The key sits in the
    list's header once, so the marks never need a label of their own. */
-.lg-fx-me { display: inline-flex; align-items: center; gap: .18rem; min-width: 1rem; }
+.lg-fx-me { display: inline-flex; align-items: center; gap: .2rem; justify-self: end; min-width: 1rem; }
 .lg-fx-me .num { font-size: var(--t-xs); font-weight: 700; color: var(--ink-2); margin-left: .05rem; }
-.lg-goal { width: .95rem; height: .95rem; color: var(--k-soccer); flex: none; }
-.lg-assist {
-  width: .72rem; height: .72rem; border-radius: 50%; box-sizing: border-box; flex: none;
-  border: 2px solid var(--k-soccer); opacity: .8;
-}
+.lg-goal, .lg-assist { width: .95rem; height: .95rem; color: var(--k-soccer); flex: none; stroke-width: 0; }
+.lg-assist { opacity: .85; }
 .lg-fx-head { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; }
 .lg-fx-key { display: inline-flex; align-items: center; gap: .3rem; font-size: var(--t-xs); color: var(--ink-3); text-transform: none; letter-spacing: 0; font-weight: 500; }
+.lg-fx-key .lg-goal, .lg-fx-key .lg-assist { width: .85rem; height: .85rem; }
 .lg-fx-key .lg-assist { margin-left: .5rem; }
 @media (max-width: 640px) {
   .lg-fx { grid-template-columns: auto auto minmax(0, 1fr) auto; }

@@ -269,7 +269,12 @@ the DaySmart venue (Thursdays, Night Owls) — last ezleagues game 2026-09-09,
 first DaySmart game 2026-09-17. Migration 013 made the switch, and the weekday→fixture rule is
 dated (`MENS_ON_THURSDAY_FROM` = 2026-09-10, in both
 `report/views.py` and `web/dataset.js`) so summer Wednesdays still resolve to
-men's league. Surfaces that read the rule: the Soccer page By-fixture panel and
+men's league. **The league schedule outranks the weekday** (since 2026-11-01):
+`views._scheduled_fixtures()` reads every season's fixtures for the team, so a
+match logged on a date the league had a game is that league's fixture
+(`fixture_source` = `schedule`), whatever the weekday says — a coed game moved
+to a Tuesday was being filed as pickup and its goals left out of the season.
+An explicit `detail.team` still wins over everything. Surfaces that read the rule: the Soccer page By-fixture panel and
 match table, the entry form's implied fixture, `/api/views/soccer` `fixture`
 and `fixture_source`.
 
