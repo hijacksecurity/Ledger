@@ -29,7 +29,7 @@ import {
 } from './ui.js';
 import { figure } from './charts.js';
 import {
-  weekIntent, goalWeightLb, latestWeighIn, weighInDelta,
+  weekIntent, goalWeightLb, latestWeighIn, weighInDelta, loadPlanState,
 } from './dataset.js';
 import {
   scoreWeek, lifetimeLevel, band, toKg, inputFromSummary, weightedPace,
@@ -120,9 +120,13 @@ export function mount(host, route) {
         kind: 'run', limit: 200,
       })}`),
       api(`/api/habits${qs({ from: state.weekOf, to: addDays(state.weekOf, 6) })}`),
+      /* The planned counts and the goal are on the server; both pillars that
+         read them wait for the snapshot rather than scoring a blank. */
+      loadPlanState(),
     ]);
     busy(false);
     if (!alive) return;
+    state.goalLb = goalWeightLb();
 
     if (!sum.ok) {
       clear(pHero.body); clear(pLevel.body); clear(pTrend.body);

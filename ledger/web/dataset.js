@@ -1193,16 +1193,119 @@ export function trendsReadout(d, sessions, { metric, grain, kind }) {
   return out;
 }
 
-/* ── week intent ─────────────────────────────────────────────────────────── */
+/* ── the plan store ──────────────────────────────────────────────────────── */
 
-/* Planned counts per modality, written by #/intent into this browser's
-   localStorage. Read here rather than in each view so the two pages that care
-   — the intent editor and the scoreboard — cannot disagree about what was
-   planned for a given week. */
-const PLAN_KEY = 'ledger.plan';
+/* The hand-written half of the plan — counts per modality for a week, how a
+   week's distance is spread over its days, and the goal weight the Scoreboard
+   scores movement toward. All three are on the server (`/api/plan/intent`,
+   `/api/plan/days`, `/api/plan/goal`) so a plan written at a desk is the same
+   plan on the phone. They used to be in this browser's localStorage, which is
+   exactly why it was not.
 
-export function readPlans() {
-  try { return JSON.parse(localStorage.getItem(PLAN_KEY) || '{}'); } catch { return {}; }
+   One snapshot, loaded once per page and mutated in place by the writers, so
+   `weekIntent()` and `goalWeightLb()` stay synchronous for the three pages
+   that read them mid-paint. A page `await`s `loadPlanState()` before it
+   paints anything that depends on these. */
+const planState = {
+  plans: {},      // weekStart -> { kinds: {kind: n}, note }
+  days: {},       // weekStart -> { km: {date: n}, match: [dates] }
+  goalLb: null,
+  loaded: false,
+};
+
+const replaceKeys = (target, next) => {
+  for (const k of Object.keys(target)) delete target[k];
+  Object.assign(target, next);
+  return target;
+};
+
+export function readPlans() { return planState.plans; }
+export function readPlanDays() { return planState.days; }
+export const planLoaded = () => planState.loaded;
+
+/**
+ * Fetch the three stores. Resolves to the snapshot; `loaded` is false when
+ * any of the three failed, and the page says so rather than planning on a
+ * blank. Cached for the page's life — a write updates the snapshot itself.
+ */
+export async function loadPlanState({ force = false } = {}) {
+  if (planState.loaded && !force) return planState;
+  const [pi, pd, pg] = await Promise.all([
+    api('/api/plan/intent'), api('/api/plan/days'), api('/api/plan/goal'),
+  ]);
+  if (pi.ok) {
+    replaceKeys(planState.plans, Object.fromEntries((pi.data.plans || []).map((p) => [
+      p.week_start, { kinds: { ...(p.kinds || {}) }, note: p.note || '' },
+    ])));
+  }
+  if (pd.ok) {
+    replaceKeys(planState.days, Object.fromEntries((pd.data.weeks || []).map((w) => [
+      w.week_start, { km: { ...(w.km || {}) }, match: [...(w.match || [])] },
+    ])));
+  }
+  if (pg.ok) planState.goalLb = pg.data.goal_weight_lb ?? null;
+  planState.loaded = pi.ok && pd.ok && pg.ok;
+  if (planState.loaded) await adoptLocalPlans();
+  return planState;
+}
+
+/** Write one week's counts; `entry` null clears it. Resolves to ok. */
+export async function savePlanWeek(weekISO, entry) {
+  const body = entry ? { kinds: entry.kinds || {}, note: entry.note || '' } : { kinds: {}, note: '' };
+  const res = await api(`/api/plan/intent/${weekISO}`, { method: 'PUT', body });
+  if (!res.ok) return false;
+  const stored = res.data.plan;
+  if (stored) planState.plans[weekISO] = { kinds: { ...stored.kinds }, note: stored.note || '' };
+  else delete planState.plans[weekISO];
+  return true;
+}
+
+/** Write one week's day split; `entry` null clears it. Resolves to ok. */
+export async function savePlanDays(weekISO, entry) {
+  const body = entry ? { km: entry.km || {}, match: entry.match || [] } : { km: {}, match: [] };
+  const res = await api(`/api/plan/days/${weekISO}`, { method: 'PUT', body });
+  if (!res.ok) return false;
+  const stored = res.data.week;
+  if (stored) planState.days[weekISO] = { km: { ...stored.km }, match: [...stored.match] };
+  else delete planState.days[weekISO];
+  return true;
+}
+
+/* Three keys this browser used before the server held the plan. Read once,
+   pushed up for any week the server does not already have — the server's
+   copy wins where both exist — and then removed, so a plan written on this
+   device before the move is not lost and is never pushed up twice. */
+const LEGACY_KEYS = { plans: 'ledger.plan', days: 'ledger.plan.days', goal: 'ledger.goalWeightLb' };
+
+async function adoptLocalPlans() {
+  let plans = {};
+  let days = {};
+  let goal = NaN;
+  try {
+    plans = JSON.parse(localStorage.getItem(LEGACY_KEYS.plans) || '{}') || {};
+    days = JSON.parse(localStorage.getItem(LEGACY_KEYS.days) || '{}') || {};
+    goal = Number(localStorage.getItem(LEGACY_KEYS.goal));
+  } catch { return; }
+  const writes = [];
+  for (const [w, p] of Object.entries(plans)) {
+    if (!planState.plans[w] && p && (Object.keys(p.kinds || {}).length || p.note)) {
+      writes.push(savePlanWeek(w, p));
+    }
+  }
+  for (const [w, d] of Object.entries(days)) {
+    if (!planState.days[w] && d && (Object.keys(d.km || {}).length || (d.match || []).length)) {
+      writes.push(savePlanDays(w, d));
+    }
+  }
+  if (planState.goalLb == null && Number.isFinite(goal) && goal > 0) writes.push(setGoalWeightLb(goal));
+  if (!writes.length) {
+    try { Object.values(LEGACY_KEYS).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
+    return;
+  }
+  const results = await Promise.all(writes);
+  if (results.every(Boolean)) {
+    try { Object.values(LEGACY_KEYS).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
+  }
 }
 
 /**
@@ -1240,19 +1343,21 @@ export function weekIntent(weekISO, plans = readPlans()) {
    page — planning is where a goal belongs — and read by the Scoreboard, so it
    lives here rather than in either view. Pounds, because the notebook is in
    pounds and so is the user's head; everything downstream converts. */
-const GOAL_KEY = 'ledger.goalWeightLb';
 /* No goal until one is set: the bodyweight pillar stays off the Scoreboard
    rather than scoring movement toward a number nobody chose. */
 export const DEFAULT_GOAL_LB = null;
 
 export function goalWeightLb() {
-  let v = NaN;
-  try { v = Number(localStorage.getItem(GOAL_KEY)); } catch { /* private mode */ }
+  const v = planState.goalLb;
   return Number.isFinite(v) && v > 0 ? v : DEFAULT_GOAL_LB;
 }
 
-export function setGoalWeightLb(lb) {
-  const v = Number(lb);
-  if (!Number.isFinite(v) || v <= 0) return false;
-  try { localStorage.setItem(GOAL_KEY, String(v)); return true; } catch { return false; }
+/** Set (or, with null, clear) the goal. Resolves to ok. */
+export async function setGoalWeightLb(lb) {
+  const v = lb == null || lb === '' ? null : Number(lb);
+  if (v != null && !(Number.isFinite(v) && v > 0)) return false;
+  const res = await api('/api/plan/goal', { method: 'PUT', body: { lb: v } });
+  if (!res.ok) return false;
+  planState.goalLb = res.data.goal_weight_lb ?? null;
+  return true;
 }

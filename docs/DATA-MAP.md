@@ -318,11 +318,43 @@ themselves still parse.
 Once a league row exists the database is the authority — editing the constant
 to change seasons does nothing.
 
-### `ledger.plan.days` (localStorage)
-`{ weekStart: { km: { date: n }, match: [dates] } }` — how a week's committed
-distance is spread over its seven days, and which days are match days. Written
-only by "The week, day by day" on `#/plan`; this device only, like
-`ledger.plan`.
+### `/api/plan/intent` — `kinds`, `note`
+Planned session counts per kind for a week, one row per week written
+explicitly. A week with no row **inherits the most recent earlier one**
+(`dataset.js::weekIntent`), and every surface below reads through that one
+function so they cannot disagree about what applies. Server-side since
+migration 017; before that it was `ledger.plan` in one browser's localStorage,
+and the phone never saw it. On first load after the move, `dataset.js`
+pushes any plan still in localStorage up for weeks the server lacks, then
+removes the local copy.
+
+| Surface | Where |
+|---|---|
+| Week picker counts, Intent, Against the record, Every plan | `#/plan` |
+| Plan-adherence pillar (planned counts) | `#/score`, the score tile on `#/week` |
+| The week, day by day — how many run days to spread over | `#/plan` |
+
+**Trap:** the endpoint reports what was *written*, not what *applies*. A
+week that inherits is absent from `/api/plan/intent` and present on every
+page; asking the API why a week "has a plan" means looking at the latest
+earlier row.
+
+### `/api/plan/goal` — `goal_weight_lb`
+The goal the bodyweight pillar scores movement toward. Null until set; the
+pillar is absent while it is null. Server-side since migration 017 (was
+`ledger.goalWeightLb` in localStorage).
+
+| Surface | Where |
+|---|---|
+| Goal weight setting | `#/plan` |
+| Bodyweight pillar | `#/score`, the score tile on `#/week` |
+
+### `/api/plan/days` — `km`, `match`
+`{ week_start, km: { date: n }, match: [dates] }` — how a week's committed
+distance is spread over its seven days, and which days the user marked as
+match days. Written only by "The week, day by day" on `#/plan`. Server-side
+since migration 017 (was `ledger.plan.days` in localStorage). Every date is
+refused unless it falls inside the week.
 
 | Surface | Where |
 |---|---|
@@ -446,7 +478,7 @@ nobody indexed is a panel nobody will think to re-check when its data changes.
 - Distance over time
 - Intent
 - Against the record
-- Every plan on this device
+- Every plan
 - The weeks, in numbers
 
 ### `#/recovery`

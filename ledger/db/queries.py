@@ -761,6 +761,113 @@ def clear_plan_weeks(conn: sqlite3.Connection, from_week: str | None = None) -> 
     return cur.rowcount
 
 
+# --- the rest of the plan: intent, day split, settings ----------------------
+#
+# Stored as the JSON the page writes, read back whole. See
+# migrations/017_plan_intent.sql for why these are not columns per kind.
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def plan_intents(
+    conn: sqlite3.Connection, start: str | None = None, end: str | None = None
+) -> list[dict[str, Any]]:
+    sql = "SELECT * FROM plan_intent"
+    clauses, args = [], []
+    if start:
+        clauses.append("week_start >= ?")
+        args.append(start)
+    if end:
+        clauses.append("week_start <= ?")
+        args.append(end)
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    return [
+        {
+            "week_start": r["week_start"],
+            "kinds": json.loads(r["kinds"]),
+            "note": r["note"],
+            "updated_at": r["updated_at"],
+        }
+        for r in conn.execute(sql + " ORDER BY week_start", args)
+    ]
+
+
+def put_plan_intent(
+    conn: sqlite3.Connection, week_start: str, kinds: dict[str, int], note: str
+) -> None:
+    """One row per week; writing replaces."""
+    conn.execute(
+        "INSERT INTO plan_intent (week_start, kinds, note, updated_at) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(week_start) DO UPDATE SET "
+        "kinds = excluded.kinds, note = excluded.note, updated_at = excluded.updated_at",
+        (week_start, json.dumps(kinds, sort_keys=True), note, _now()),
+    )
+
+
+def delete_plan_intent(conn: sqlite3.Connection, week_start: str) -> int:
+    return conn.execute("DELETE FROM plan_intent WHERE week_start = ?", (week_start,)).rowcount
+
+
+def plan_days_rows(
+    conn: sqlite3.Connection, start: str | None = None, end: str | None = None
+) -> list[dict[str, Any]]:
+    sql = "SELECT * FROM plan_days"
+    clauses, args = [], []
+    if start:
+        clauses.append("week_start >= ?")
+        args.append(start)
+    if end:
+        clauses.append("week_start <= ?")
+        args.append(end)
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    return [
+        {
+            "week_start": r["week_start"],
+            "km": json.loads(r["km"]),
+            "match": json.loads(r["match"]),
+            "updated_at": r["updated_at"],
+        }
+        for r in conn.execute(sql + " ORDER BY week_start", args)
+    ]
+
+
+def put_plan_days(
+    conn: sqlite3.Connection, week_start: str, km: dict[str, float], match: list[str]
+) -> None:
+    conn.execute(
+        "INSERT INTO plan_days (week_start, km, match, updated_at) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(week_start) DO UPDATE SET "
+        "km = excluded.km, match = excluded.match, updated_at = excluded.updated_at",
+        (week_start, json.dumps(km, sort_keys=True), json.dumps(sorted(match)), _now()),
+    )
+
+
+def delete_plan_days(conn: sqlite3.Connection, week_start: str) -> int:
+    return conn.execute("DELETE FROM plan_days WHERE week_start = ?", (week_start,)).rowcount
+
+
+def get_setting(conn: sqlite3.Connection, key: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM setting WHERE key = ?", (key,)).fetchone()
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute(
+        "INSERT INTO setting (key, value, updated_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+        (key, value, _now()),
+    )
+
+
+def delete_setting(conn: sqlite3.Connection, key: str) -> int:
+    return conn.execute("DELETE FROM setting WHERE key = ?", (key,)).rowcount
+
+
 def weeks_between(conn: sqlite3.Connection, start: str, end: str) -> list[sqlite3.Row]:
     return list(
         conn.execute(

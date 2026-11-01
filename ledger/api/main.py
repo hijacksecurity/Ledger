@@ -663,6 +663,224 @@ def plan_unlock(conn: DB, from_week: str | None = None) -> dict[str, Any]:
     return {"cleared": q.clear_plan_weeks(conn, from_week)}
 
 
+# --- the rest of the plan: intent, day split, goal ---------------------------
+#
+# The committed distance ramp above was always on the server. The planned
+# counts per kind, the day-by-day split and the goal weight lived in one
+# browser's localStorage until migration 017, which is why a plan written at
+# a desk was missing on the phone. These endpoints are that half of the page.
+# Every PUT returns the row as stored, so the page repaints from the server's
+# own answer rather than from what it sent.
+
+#: The most of one kind a week can plan for. Three a day.
+MAX_PLANNED_PER_KIND = 21
+GOAL_WEIGHT_KEY = "goal_weight_lb"
+
+
+def _monday_or_422(value: str, field: str = "week_start") -> str:
+    day = date.fromisoformat(_iso_or_422(value, field))
+    if day.weekday() != 0:
+        raise HTTPException(status_code=422, detail=f"{field} must be a Monday")
+    return value
+
+
+def _plan_window(from_: str | None, to: str | None) -> tuple[str | None, str | None]:
+    start = _iso_or_422(from_, "from") if from_ else None
+    end = _iso_or_422(to, "to") if to else None
+    if start and end and end < start:
+        raise HTTPException(status_code=422, detail="to must not precede from")
+    return start, end
+
+
+def _intent_or_422(payload: dict[str, Any]) -> tuple[dict[str, int], str]:
+    raw = payload.get("kinds") or {}
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=422, detail="kinds must be an object of kind -> count")
+    kinds: dict[str, int] = {}
+    for kind, count in raw.items():
+        if kind not in VALID_KINDS:
+            raise HTTPException(status_code=422, detail=f"unknown kind {kind!r}")
+        try:
+            n = int(count)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422, detail=f"{kind}: count must be a whole number"
+            ) from exc
+        if n < 0 or n > MAX_PLANNED_PER_KIND:
+            raise HTTPException(
+                status_code=422, detail=f"{kind}: count must be 0-{MAX_PLANNED_PER_KIND}"
+            )
+        if n:
+            kinds[kind] = n
+    note = payload.get("note") or ""
+    if not isinstance(note, str):
+        raise HTTPException(status_code=422, detail="note must be text")
+    note = note.strip()
+    if len(note) > 500:
+        raise HTTPException(status_code=422, detail="note must be 500 characters or fewer")
+    return kinds, note
+
+
+def _in_week_or_422(day: str, week_start: str, field: str) -> str:
+    _iso_or_422(day, field)
+    end = (date.fromisoformat(week_start) + timedelta(days=6)).isoformat()
+    if not week_start <= day <= end:
+        raise HTTPException(
+            status_code=422, detail=f"{field}: {day} is not in the week of {week_start}"
+        )
+    return day
+
+
+def _days_or_422(payload: dict[str, Any], week_start: str) -> tuple[dict[str, float], list[str]]:
+    raw_km = payload.get("km") or {}
+    if not isinstance(raw_km, dict):
+        raise HTTPException(status_code=422, detail="km must be an object of date -> km")
+    km: dict[str, float] = {}
+    for day, value in raw_km.items():
+        _in_week_or_422(str(day), week_start, "km")
+        if value is None:
+            continue
+        try:
+            n = float(value)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=f"km on {day} must be a number") from exc
+        if n < 0 or n > 200:
+            raise HTTPException(status_code=422, detail=f"km on {day} must be 0-200")
+        km[str(day)] = round(n, 2)
+    raw_match = payload.get("match") or []
+    if not isinstance(raw_match, list):
+        raise HTTPException(status_code=422, detail="match must be a list of dates")
+    match = sorted({_in_week_or_422(str(d), week_start, "match") for d in raw_match})
+    return km, match
+
+
+@app.get("/api/plan/intent")
+def plan_intent(
+    conn: DB,
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+) -> dict[str, Any]:
+    """Planned counts per kind, one row per week that has its own plan.
+
+    Only weeks written explicitly are here. A week with no row inherits the
+    most recent earlier one on the page; this endpoint reports what was
+    written, not what applies.
+    """
+    start, end = _plan_window(from_, to)
+    return {"plans": q.plan_intents(conn, start, end)}
+
+
+@app.put("/api/plan/intent/{week_start}")
+def put_plan_intent(week_start: str, payload: dict[str, Any], conn: DB) -> dict[str, Any]:
+    """Write one week's planned counts: `{"kinds": {"run": 3}, "note": ""}`.
+
+    Zero counts are dropped. Nothing planned and no note deletes the row, so
+    a cleared week goes back to inheriting rather than storing an empty plan.
+    """
+    _monday_or_422(week_start)
+    kinds, note = _intent_or_422(payload)
+    with transaction(conn):
+        if not kinds and not note:
+            q.delete_plan_intent(conn, week_start)
+            return {"ok": True, "week_start": week_start, "plan": None}
+        q.put_plan_intent(conn, week_start, kinds, note)
+    return {"ok": True, "week_start": week_start,
+            "plan": q.plan_intents(conn, week_start, week_start)[0]}
+
+
+@app.delete("/api/plan/intent/{week_start}")
+def delete_plan_intent(week_start: str, conn: DB) -> dict[str, Any]:
+    _monday_or_422(week_start)
+    with transaction(conn):
+        n = q.delete_plan_intent(conn, week_start)
+    return {"ok": True, "week_start": week_start, "deleted": n}
+
+
+@app.get("/api/plan/days")
+def plan_days(
+    conn: DB,
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+) -> dict[str, Any]:
+    """How each planned week's distance is spread over its days.
+
+    `km` is date -> planned kilometres; `match` is the days the user marked
+    as match days themselves (published fixtures are on `/api/leagues`).
+    """
+    start, end = _plan_window(from_, to)
+    return {"weeks": q.plan_days_rows(conn, start, end)}
+
+
+@app.put("/api/plan/days/{week_start}")
+def put_plan_days(week_start: str, payload: dict[str, Any], conn: DB) -> dict[str, Any]:
+    """Write one week's day split: `{"km": {date: n}, "match": [dates]}`.
+
+    Every date must fall inside the week. An empty split deletes the row.
+    """
+    _monday_or_422(week_start)
+    km, match = _days_or_422(payload, week_start)
+    with transaction(conn):
+        if not km and not match:
+            q.delete_plan_days(conn, week_start)
+            return {"ok": True, "week_start": week_start, "week": None}
+        q.put_plan_days(conn, week_start, km, match)
+    return {"ok": True, "week_start": week_start,
+            "week": q.plan_days_rows(conn, week_start, week_start)[0]}
+
+
+@app.delete("/api/plan/days/{week_start}")
+def delete_plan_days(week_start: str, conn: DB) -> dict[str, Any]:
+    _monday_or_422(week_start)
+    with transaction(conn):
+        n = q.delete_plan_days(conn, week_start)
+    return {"ok": True, "week_start": week_start, "deleted": n}
+
+
+def _goal(conn: sqlite3.Connection) -> dict[str, Any]:
+    row = q.get_setting(conn, GOAL_WEIGHT_KEY)
+    if row is None:
+        return {"goal_weight_lb": None, "updated_at": None}
+    return {"goal_weight_lb": float(row["value"]), "updated_at": row["updated_at"]}
+
+
+@app.get("/api/plan/goal")
+def plan_goal(conn: DB) -> dict[str, Any]:
+    """The goal weight, in pounds, or null when none is set.
+
+    The Scoreboard's bodyweight pillar scores which way the four-week average
+    is moving relative to it — never the number itself — and is absent while
+    this is null.
+    """
+    return _goal(conn)
+
+
+@app.put("/api/plan/goal")
+def put_plan_goal(payload: dict[str, Any], conn: DB) -> dict[str, Any]:
+    """Set the goal weight: `{"lb": 180}`. `{"lb": null}` clears it."""
+    if "lb" not in payload:
+        raise HTTPException(status_code=422, detail="lb is required")
+    raw = payload["lb"]
+    with transaction(conn):
+        if raw is None:
+            q.delete_setting(conn, GOAL_WEIGHT_KEY)
+            return {"ok": True, **_goal(conn)}
+        try:
+            lb = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="lb must be a number") from exc
+        if not 50 <= lb <= 500:
+            raise HTTPException(status_code=422, detail="lb must be between 50 and 500")
+        q.set_setting(conn, GOAL_WEIGHT_KEY, repr(round(lb, 1)))
+    return {"ok": True, **_goal(conn)}
+
+
+@app.delete("/api/plan/goal")
+def delete_plan_goal(conn: DB) -> dict[str, Any]:
+    with transaction(conn):
+        q.delete_setting(conn, GOAL_WEIGHT_KEY)
+    return {"ok": True, **_goal(conn)}
+
+
 #: How old the stored leagues may get before a plain GET refreshes them behind
 #: the response. Six hours puts a Monday-night scoreline on the page the next
 #: time it is opened, without re-scraping somebody else's site on every visit.

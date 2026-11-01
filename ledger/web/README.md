@@ -663,10 +663,12 @@ added there too.
 Written up in `NOTES-FOR-BACKEND.md` and deleted as the API catches up. **One
 is left.**
 
-1. **Two small things live in `localStorage` because there is nowhere else:**
-   the hand-written week intent folded away at the foot of `#/plan` (the
-   distance planner above it is entirely server-side) and the "working around"
-   note on the Lifting page (there is no server table for it).
+1. **One small thing lives in `localStorage` because there is nowhere else:**
+   the "working around" note on the Lifting page (there is no server table
+   for it). The week intent, the day split and the goal weight used to be
+   here too; they are on the server since migration 017 (`/api/plan/intent`,
+   `/api/plan/days`, `/api/plan/goal`), read through one snapshot in
+   `dataset.js` so the phone and the desk show the same plan.
 
 Struck through: gone, with the server fix that allowed it.
 

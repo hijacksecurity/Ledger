@@ -557,8 +557,17 @@ GET /api/sessions/{id} → session   (404 if absent)
 
 ---
 
-## 4. A plan table, if planning is meant to persist
+## 4. A plan table, if planning is meant to persist — **DONE**
 
+> **Update 3 — all of it persists.** Migration 017 added `plan_intent`,
+> `plan_days` and `setting`, with `GET/PUT/DELETE /api/plan/intent/{monday}`,
+> `GET/PUT/DELETE /api/plan/days/{monday}` and `GET/PUT/DELETE /api/plan/goal`.
+> The shapes are the ones requested below. The front end reads all three into
+> one snapshot (`dataset.js::loadPlanState`) and, on the first load after the
+> move, pushes whatever was still in localStorage up for weeks the server
+> does not have, then clears the local keys. The two "in the meantime" items
+> under the day split (median match distance, fixture dates) still stand.
+>
 > **Update 2 — the distance plan now persists.** `plan_week` and three
 > endpoints landed, and `#/plan` has a **Committed plan** panel under the
 > projection:

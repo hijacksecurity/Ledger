@@ -245,6 +245,41 @@ async def plan_projection(
     )
 
 
+@mcp.tool(annotations=READ_ONLY)
+async def plan_intent(
+    from_date: str | None = None, to_date: str | None = None
+) -> dict[str, Any]:
+    """Planned session counts per kind, one row per week that has its own plan.
+
+    `kinds` is kind -> count (`{"run": 3, "soccer": 2}`) with a free-text
+    `note`. Only weeks written explicitly are listed; on the Plan page a week
+    with no row inherits the most recent earlier one. Dates are ISO Mondays.
+    """
+    return await _get("/api/plan/intent", **{"from": from_date, "to": to_date})
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def plan_days(
+    from_date: str | None = None, to_date: str | None = None
+) -> dict[str, Any]:
+    """How each planned week's distance is spread over its days.
+
+    Per week: `km` is date -> planned kilometres and `match` is the match
+    days the user marked themselves (published fixtures are in `leagues`).
+    """
+    return await _get("/api/plan/days", **{"from": from_date, "to": to_date})
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def plan_goal() -> dict[str, Any]:
+    """The goal weight in pounds, or null when none is set.
+
+    The Scoreboard scores which way the four-week bodyweight average is
+    moving relative to it, never the number itself.
+    """
+    return await _get("/api/plan/goal")
+
+
 # --- Soccer ---------------------------------------------------------------
 
 

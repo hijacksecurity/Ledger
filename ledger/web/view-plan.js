@@ -23,9 +23,10 @@
  * an alarm.
  *
  * Everything planned lives here: the week's counts per modality, the running
- * distance ramp and its committed targets, and the goal weight. The counts and
- * the goal are still in this browser's localStorage — there is no plan table on
- * the server; see NOTES-FOR-BACKEND.md.
+ * distance ramp and its committed targets, the day-by-day split and the goal
+ * weight. All of it is on the server — `dataset.js` holds the snapshot the
+ * three planning stores are read from and written through — so the plan is
+ * the same plan on every device.
  */
 
 import {
@@ -38,38 +39,25 @@ import {
   weekPosition, nowTag,
 } from './ui.js';
 import { figure } from './charts.js';
-import { weekIntent, goalWeightLb, setGoalWeightLb } from './dataset.js';
+import {
+  weekIntent, goalWeightLb, setGoalWeightLb, loadPlanState, readPlans, readPlanDays,
+  savePlanWeek, savePlanDays,
+} from './dataset.js';
 import { attainTone } from './score.js';
-
-const PLAN_KEY = 'ledger.plan';
 
 const HORIZONS = [[4, '4 weeks'], [8, '8 weeks'], [12, '12 weeks'], [26, '26 weeks']];
 const DELOADS = [[0, 'None'], [3, 'Every 3rd'], [4, 'Every 4th']];
 
-const readPlans = () => {
-  try { return JSON.parse(localStorage.getItem(PLAN_KEY) || '{}'); } catch { return {}; }
-};
-const writePlans = (plans) => {
-  try { localStorage.setItem(PLAN_KEY, JSON.stringify(plans)); return true; } catch { return false; }
-};
-
 /* The day-by-day split of a week's committed distance:
    `{ weekStart: { km: { date: n }, match: [dates] } }`.
 
-   Separate from `ledger.plan` because it answers a different question: that one
-   is how many sessions, this one is how far on which day. `match` is the days
-   you know you are playing that the league has not published a fixture for —
-   the schedule is one source of matches and you are the other, and a week
-   planned around only the published half puts a match's kilometres onto a run.
-   Same device, same reason — see NOTES-FOR-BACKEND.md. */
-const DAY_KEY = 'ledger.plan.days';
-
-const readDays = () => {
-  try { return JSON.parse(localStorage.getItem(DAY_KEY) || '{}'); } catch { return {}; }
-};
-const writeDays = (days) => {
-  try { localStorage.setItem(DAY_KEY, JSON.stringify(days)); return true; } catch { return false; }
-};
+   Separate from the week's counts because it answers a different question:
+   that one is how many sessions, this one is how far on which day. `match` is
+   the days you know you are playing that the league has not published a
+   fixture for — the schedule is one source of matches and you are the other,
+   and a week planned around only the published half puts a match's kilometres
+   onto a run. Written through `savePlanDays`; the saved copy is on the server. */
+const SAVE_FAILED = 'Could not save — the server did not answer. Try again.';
 
 const median = (xs) => {
   if (!xs.length) return null;
@@ -223,7 +211,7 @@ export function mount(host, route, { setQuery }) {
   const thisWeekISO = weekStart(todayISO());
   const intent = {
     week: q.get('week_intent') || thisWeekISO,
-    plans: readPlans(),
+    plans: readPlans(),   // the live snapshot; filled by loadPlanState()
     latest: null,
     actual: null,
   };
@@ -233,7 +221,7 @@ export function mount(host, route, { setQuery }) {
     title: 'Against the record',
     sub: 'this week planned beside this week logged — neither is a score',
   });
-  const pAll = panel({ title: 'Every plan on this device', sub: ' ' });
+  const pAll = panel({ title: 'Every plan', sub: ' ' });
 
   /* Moved here from the Scoreboard. A goal is a thing you plan toward, so it
      belongs on the page where planning happens; the Scoreboard reads it and
@@ -325,7 +313,7 @@ export function mount(host, route, { setQuery }) {
   skeletonBlock(240, pMix.body);
   skeletonLines(3, pLocked.body);
   skeletonBlock(150, pDays.body);
-  buildGoal();
+  pGoal.body.append(skeletonLines(2));   // built once the goal has been read
 
   /**
    * Show the ramp, or a one-line reason it is not showing.
@@ -401,8 +389,14 @@ export function mount(host, route, { setQuery }) {
     };
     describe();
 
-    save.addEventListener('click', () => {
-      if (!setGoalWeightLb(input.value)) { toast('Enter a weight in pounds.'); return; }
+    save.addEventListener('click', async () => {
+      const v = Number(input.value);
+      if (!(Number.isFinite(v) && v > 0)) { toast('Enter a weight in pounds.'); return; }
+      busy(true);
+      const ok = await setGoalWeightLb(v);
+      busy(false);
+      if (!alive) return;
+      if (!ok) { toast(SAVE_FAILED); return; }
       describe();
       toast(`Goal weight set to ${goalWeightLb()} lb.`);
     });
@@ -1239,22 +1233,28 @@ export function mount(host, route, { setQuery }) {
     const save = el('button', { class: 'btn btn-primary', type: 'button' }, [
       icon('check'), el('span', { text: 'Save plan' }),
     ]);
-    save.addEventListener('click', () => {
+    save.addEventListener('click', async () => {
       const kinds = {};
       for (const [k, v] of Object.entries(draft.kinds)) if (v > 0) kinds[k] = v;
-      if (!Object.keys(kinds).length && !draft.note.trim()) delete intent.plans[start];
-      else intent.plans[start] = { kinds, note: draft.note.trim() };
-      if (!writePlans(intent.plans)) { toast('Could not save — storage is unavailable.'); return; }
-      toast('Plan saved on this device.');
+      const entry = Object.keys(kinds).length || draft.note.trim()
+        ? { kinds, note: draft.note.trim() } : null;
+      save.disabled = true;
+      const ok = await savePlanWeek(start, entry);
+      save.disabled = false;
+      if (!alive) return;
+      if (!ok) { toast(SAVE_FAILED); return; }
+      toast('Plan saved.');
       buildPicker();
+      buildIntent();
       buildAll();
       buildActual();
     });
 
     const clearBtn = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Clear this week' });
-    clearBtn.addEventListener('click', () => {
-      delete intent.plans[start];
-      writePlans(intent.plans);
+    clearBtn.addEventListener('click', async () => {
+      const ok = await savePlanWeek(start, null);
+      if (!alive) return;
+      if (!ok) { toast(SAVE_FAILED); return; }
       buildPicker(); buildIntent(); buildAll(); buildActual();
       toast('Plan cleared.');
     });
@@ -1343,7 +1343,7 @@ export function mount(host, route, { setQuery }) {
       .filter(([, p]) => sumPlan(p) > 0 || p.note)
       .sort((a, b) => (a[0] < b[0] ? 1 : -1));
     pAll.head.querySelector('.sub').textContent =
-      `${entries.length} week${entries.length === 1 ? '' : 's'} planned · stored in this browser`;
+      `${entries.length} week${entries.length === 1 ? '' : 's'} planned · the same on every device`;
     if (!entries.length) {
       pAll.body.append(emptyNote('No plans written yet.'));
       return;
@@ -1365,7 +1365,7 @@ export function mount(host, route, { setQuery }) {
   /* ══ the week, day by day ══════════════════════════════════════════════ */
 
   const days = {
-    saved: readDays(),
+    saved: readPlanDays(),  // the live snapshot; filled by loadPlanState()
     logged: new Map(),     // date -> on-foot km actually logged
     loggedRuns: 0,
     fixtures: [],          // scheduled matches, all leagues
@@ -1469,7 +1469,21 @@ export function mount(host, route, { setQuery }) {
     if (value == null) delete w.km[date];
     else w.km[date] = value;
     if (!Object.keys(w.km).length && !(w.match || []).length) delete days.saved[start];
-    if (!writeDays(days.saved)) toast('Could not save — storage is unavailable.');
+    persistDays(start);
+  }
+
+  /* The snapshot is changed first and the server told after, so the grid
+     answers at once; a refused write says so. Writes to one week are queued
+     behind each other so two quick edits cannot land out of order. */
+  const pendingDays = new Map();
+  function persistDays(start) {
+    const entry = days.saved[start] ? { km: { ...days.saved[start].km }, match: [...(days.saved[start].match || [])] } : null;
+    const prev = pendingDays.get(start) || Promise.resolve();
+    const next = prev.then(() => savePlanDays(start, entry)).then((ok) => {
+      if (alive && !ok) toast(SAVE_FAILED);
+    });
+    pendingDays.set(start, next);
+    return next;
   }
 
   /** Mark or unmark a day as one you are playing on. */
@@ -1487,7 +1501,7 @@ export function mount(host, route, { setQuery }) {
       w.km[date] = Math.round((days.typicalSoccer || 0) * 10) / 10;
     }
     if (!Object.keys(w.km || {}).length && !w.match.length) delete days.saved[start];
-    if (!writeDays(days.saved)) toast('Could not save — storage is unavailable.');
+    persistDays(start);
     buildDays();
   }
 
@@ -1550,7 +1564,7 @@ export function mount(host, route, { setQuery }) {
     slots.forEach((slot, i) => { next[free[slot]] = parts[i]; });
 
     days.saved[start] = { km: next, match: weekEntry(start).match };
-    if (!writeDays(days.saved)) toast('Could not save — storage is unavailable.');
+    persistDays(start);
     buildDays();
   }
 
@@ -1835,7 +1849,7 @@ export function mount(host, route, { setQuery }) {
       title: 'Removes the distances and any match day you marked yourself' });
     wipe.addEventListener('click', () => {
       delete days.saved[start];
-      writeDays(days.saved);
+      persistDays(start);
       buildDays();
     });
     pDays.body.append(el('div', { class: 'plan-actions' }, [go, wipe]));
@@ -1845,15 +1859,28 @@ export function mount(host, route, { setQuery }) {
 
   /* One page, so both halves boot. The intent half needs only the latest week
      to build its picker; the ramp half is the slow one and is not waited on. */
-  /* Drawn first, fetched after. The intent editor needs only `latest_week_end`
-     to decide how far forward the week picker runs, and waiting on a request
-     for that left three panels sitting as skeletons behind a call they barely
-     used. They render from what is already known — this week, and whatever is
-     in localStorage — and the picker widens when the answer arrives. */
-  buildPicker();
-  buildIntent();
-  buildAll();
-  loadActual();
+  /* The three planning stores come from the server before anything that
+     reads them is drawn: the picker's counts, the editor, the list and the
+     day grid all read the one snapshot. `latest_week_end` only widens the
+     picker, so it is not waited on. */
+  pIntent.body.append(skeletonLines(4));
+  pAll.body.append(skeletonLines(3));
+  (async () => {
+    const state = await loadPlanState();
+    if (!alive) return;
+    if (!state.loaded) {
+      clear(pIntent.body); clear(pAll.body);
+      pIntent.body.append(emptyNote('The plan could not be read from the server. Reload to try again.'));
+      pAll.body.append(emptyNote('The plan could not be read from the server.'));
+      return;
+    }
+    buildPicker();
+    buildIntent();
+    buildAll();
+    buildGoal();
+    loadActual();
+    loadDays();
+  })();
   (async () => {
     const res = await api('/api/summary?weeks=1');
     if (!alive || !res.ok) return;
@@ -1866,7 +1893,6 @@ export function mount(host, route, { setQuery }) {
   boot();
   loadLocked();
   loadMix();
-  loadDays();
 
   return {
     destroy() { alive = false; figs.forEach((f) => f.destroy && f.destroy()); },

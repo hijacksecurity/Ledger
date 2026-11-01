@@ -16,6 +16,7 @@ import {
 import { figure, splitBar, sparkline } from './charts.js';
 import {
   weekReadout, invalidate, weekIntent, goalWeightLb, latestWeighIn, weighInDelta, cached,
+  loadPlanState,
 } from './dataset.js';
 import {
   recoveryContext, lastNight, nightOfText, measureCards, SNAPSHOT_KEYS, BASELINE_NIGHTS,
@@ -271,6 +272,9 @@ export function mount(host, route) {
       api(`/api/habits${qs({ from: weekStartISO, to: weekEndISO })}`),
       cached(`metrics:base:${today}`, `/api/metrics${qs({ from: addDays(today, -(BASELINE_NIGHTS - 1)), to: today })}`),
       cached(`metrics:${weekStartISO}:${weekEndISO}`, `/api/metrics${qs({ from: weekStartISO, to: weekEndISO })}`),
+      /* The planned counts and the goal weight, from the server, before the
+         score that reads them is built. */
+      loadPlanState(),
     ]);
     if (!alive) return;
     state.locked = lk.ok ? lk.data : null;
