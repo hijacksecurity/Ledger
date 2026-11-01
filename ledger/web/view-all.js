@@ -294,10 +294,10 @@ export function mount(host, route, { setQuery }) {
            tile read "396 activities over 87 weeks" — 4.55 — directly beside a
            Now tile reading 4.42. Two figures for one quantity, one card
            apart, which is this codebase's oldest failure. */
-        label: 'Counted', value: fmt.int(lifetime.activities ?? h.total),
+        label: 'Total activities', value: fmt.int(lifetime.activities ?? h.total),
         note: lifetime.weeks
-          ? `through ${fmt.dateY(lifetime.through)}, over ${fmt.int(lifetime.weeks)} weeks`
-          : `activities over ${h.weeks} weeks`,
+          ? `through ${fmt.dateY(lifetime.through)} — what the average divides by ${fmt.int(lifetime.weeks)} weeks`
+          : `over ${h.weeks} weeks`,
       },
     ]));
 

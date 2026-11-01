@@ -806,10 +806,18 @@ function drawLine(spec, width, format, formatShort, live) {
 
   if (spec.annotate === 'extremes' && leadVals.some((v) => v != null)) {
     const valid = leadVals.map((v, i) => [v, i]).filter(([v]) => v != null);
-    const hi = valid.reduce((a, b) => (b[0] > a[0] ? b : a));
-    const lo = valid.reduce((a, b) => (b[0] < a[0] ? b : a));
-    if (hi[1] !== n - 1) putLabel(hi[1], format(hi[0]), -10);
-    if (lo[1] !== n - 1 && lo[1] !== hi[1]) putLabel(lo[1], format(lo[0]), 16);
+    /* Ties resolve to the latest point, so a record equalled this week is
+       the endpoint and carries one label, not two. */
+    const hi = valid.reduce((a, b) => (b[0] >= a[0] ? b : a));
+    const lo = valid.reduce((a, b) => (b[0] <= a[0] ? b : a));
+    /* An extreme within a label's width of the endpoint is not labelled:
+       the two would print on top of each other — "4.61" over "4.59" read as
+       one smudged number when the high was the week before last. The tile
+       above the chart names the extreme and its date; the line keeps the
+       endpoint. */
+    const nearEnd = (i) => Math.abs(x(i) - x(n - 1)) < 48;
+    if (hi[1] !== n - 1 && !nearEnd(hi[1])) putLabel(hi[1], format(hi[0]), -10);
+    if (lo[1] !== n - 1 && lo[1] !== hi[1] && !nearEnd(lo[1])) putLabel(lo[1], format(lo[0]), 16);
   }
   if (lead && leadVals[n - 1] != null && !allLabelled.size) putLabel(n - 1, format(leadVals[n - 1]));
 
