@@ -387,6 +387,23 @@ def test_seasons_list_every_season_newest_first_with_the_final_table(seeded):
     assert fall["played"] == 0 and fall["scheduled"] == 2
 
 
+def test_each_fixture_carries_your_own_goals_and_assists_from_the_log(seeded):
+    """2026-08-31 is a Monday, which the log reads as coed — the same rule the
+    Soccer page uses — so the game lands on the summer fixture of that date."""
+    from ledger.entry import parse_entry
+    from ledger.ingest import save_session
+
+    save_session(seeded, parse_entry("2026-08-31 soccer W3:1 2g1a 60min rpe=7")[0])
+    [summer] = leagues.seasons(seeded, today=TODAY)
+    by_date = {f["date"]: f["logged"] for f in summer["my_fixtures"]}
+    assert by_date["2026-08-31"] == {"games": 1, "goals": 2, "assists": 1}
+    assert by_date["2026-09-14"] is None
+    assert summer["logged"] == {"games": 1, "goals": 2, "assists": 1}
+    # The live card reads the same line for the same fixture.
+    [card] = leagues.read(seeded)
+    assert {f["date"]: f["logged"] for f in card["my_fixtures"]} == by_date
+
+
 def test_a_season_with_no_schedule_yet_is_in_progress_not_finished(conn):
     bare = _league(FALL, "Winter Session Coed Open", ["Sparrows FC", "Shockers"], [])
     leagues.upsert(conn, bare, "Sparrows FC", "coed")

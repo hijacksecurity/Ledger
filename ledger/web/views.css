@@ -1272,7 +1272,7 @@ span.daycell-fig.is-none {
 .lg-fixtures { display: grid; gap: .1rem; }
 .lg-fx {
   display: grid; align-items: center; gap: .1rem .6rem;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
   padding: .34rem 0; border-top: 1px solid var(--line-2); font-size: var(--t-sm);
 }
 .lg-fx.is-done { color: var(--ink-3); }
@@ -1280,6 +1280,24 @@ span.daycell-fig.is-none {
 .lg-fx-ha { font-size: var(--t-xs); text-transform: uppercase; color: var(--ink-3); font-weight: 700; }
 .lg-fx-opp { min-width: 0; overflow-wrap: anywhere; }
 .lg-fx-time, .lg-fx-res { white-space: nowrap; }
+/* Your goals and assists for the game, from the log: a "you" key in front so
+   the figures read as yours, G and A spelled, never a bare pair of numbers. */
+.lg-fx-me {
+  display: inline-flex; align-items: baseline; gap: .2rem; white-space: nowrap;
+  padding: .1rem .45rem; border-radius: 999px; font-size: var(--t-xs); color: var(--ink-3);
+  border: 1px solid var(--line);
+}
+.lg-fx-me-k { font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .6rem; margin-right: .15rem; }
+.lg-fx-me b { font-weight: 700; color: var(--ink-2); font-size: var(--t-sm); }
+.lg-fx-me-u { font-weight: 600; }
+.lg-fx-me-sep { color: var(--line-2); margin: 0 .1rem; }
+.lg-fx-me.has-some { color: var(--ink-2); border-color: color-mix(in srgb, var(--k-soccer) 45%, var(--line)); background: color-mix(in srgb, var(--k-soccer) 8%, transparent); }
+.lg-fx-me.has-some b { color: var(--ink); }
+.lg-fx-me.is-none { font-style: italic; }
+@media (max-width: 640px) {
+  .lg-fx { grid-template-columns: auto auto minmax(0, 1fr) auto; }
+  .lg-fx-me { grid-column: 2 / -1; justify-self: start; }
+}
 .lg-fx .venue { justify-self: end; }
 
 @media (max-width: 620px) {

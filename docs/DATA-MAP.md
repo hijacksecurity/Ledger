@@ -281,7 +281,7 @@ and `fixture_source`.
 | `leagues.discover()` | the only thing that archives a season and names its successor |
 | `ledger leagues` (CLI) | prints any switch |
 | `ledger leagues --move FIXTURE LEAGUE` | the hand move: same writes as `discover()`, same rule (the team must be in the new standings); needed since the venue's listing page became a facility search in November 2026 |
-| Seasons | `#/soccer` — a folded timeline, years newest first and seasons in the order played; each row opens onto the season's full `standings` and `my_fixtures`: `leagues.seasons()` via `GET /api/leagues/seasons`. Position and record are the stored standing row (the final table for an archived season); results are `league_fixture`; the logged goals/assists are `views.soccer()` over the season's dates, filtered to the fixture, so they equal the Matches table for that window |
+| Seasons | `#/soccer` — a folded timeline, years newest first and seasons in the order played; each row opens onto the season's full `standings` and `my_fixtures`: `leagues.seasons()` via `GET /api/leagues/seasons`. Position and record are the stored standing row (the final table for an archived season); results are `league_fixture`; the logged goals/assists — per fixture (`my_fixtures[].logged`, by date) and the season total — are `views.soccer()` over the season's dates, filtered to the fixture, so they equal the Matches table for that window; the live cards' fixture lists carry the same per-game line |
 
 **Trap:** a fixture moves to a new league **only** when that league's standings
 contain `my_team` *and* it runs later than the season being replaced. Both

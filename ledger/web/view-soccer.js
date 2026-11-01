@@ -630,10 +630,40 @@ export function mount(host, route, { setQuery }) {
             el('span', { class: 'num', text: mine == null ? '' : ` ${mine}–${theirs}` }),
           ])
           : el('span', { class: 'lg-fx-time num', text: f.time_text || '' }),
+        myLine(f),
         venueBadge(f.venue),
       ]));
     }
     return wrap;
+  }
+
+  /**
+   * Your own line for a league game: goals and assists from the log, beside
+   * the team's result. Labelled "you" and spelled out on hover so a 2 · 1
+   * can never be read as a scoreline. A played game with nothing logged says
+   * so, in the same place, rather than showing a zero that was never entered.
+   */
+  function myLine(f) {
+    if (!f.played) return el('span');
+    const lg = f.logged;
+    if (!lg) {
+      return el('span', { class: 'lg-fx-me is-none', title: 'Nothing logged for this game' }, [
+        el('span', { class: 'lg-fx-me-k', text: 'you' }),
+        el('span', { text: 'not logged' }),
+      ]);
+    }
+    const g = lg.goals || 0;
+    const a = lg.assists || 0;
+    return el('span', {
+      class: `lg-fx-me${g || a ? ' has-some' : ''}`,
+      title: `You: ${g} goal${g === 1 ? '' : 's'}, ${a} assist${a === 1 ? '' : 's'}${lg.games > 1 ? ` across ${lg.games} logged games` : ''}`,
+      'aria-label': `You: ${g} goals, ${a} assists`,
+    }, [
+      el('span', { class: 'lg-fx-me-k', text: 'you' }),
+      el('b', { class: 'num', text: String(g) }), el('span', { class: 'lg-fx-me-u', text: 'G' }),
+      el('span', { class: 'lg-fx-me-sep', text: '·' }),
+      el('b', { class: 'num', text: String(a) }), el('span', { class: 'lg-fx-me-u', text: 'A' }),
+    ]);
   }
 
   const FIXTURE_LABEL = { coed: 'Coed', mens: "Men's league", pickup: 'Pickup' };

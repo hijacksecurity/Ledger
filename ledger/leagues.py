@@ -653,6 +653,9 @@ def read(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         ]
         mine = lg["my_team"].lower()
         by_team = {s["team"].lower(): s for s in standings}
+        dates = sorted(f["date"] for f in fixtures if f["date"])
+        logged = _logged_by_date(conn, lg["fixture"], dates[0] if dates else None,
+                                 dates[-1] if dates else None)
         out.append(
             {
                 "provider_id": lg["provider_id"],
@@ -670,7 +673,8 @@ def read(conn: sqlite3.Connection) -> list[dict[str, Any]]:
                 ) if any(s["gp"] for s in standings) else None,
                 "fixtures": fixtures,
                 "my_fixtures": [
-                    _with_opponent(f, lg["my_team"], by_team, fixtures) for f in fixtures
+                    _with_opponent(f, lg["my_team"], by_team, fixtures, logged)
+                    for f in fixtures
                     if mine in (f["home"] or "").lower()
                     or mine in (f["away"] or "").lower()
                 ],
@@ -679,8 +683,34 @@ def read(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return out
 
 
+def _logged_by_date(
+    conn: sqlite3.Connection, fixture: str | None, start: str | None, end: str | None,
+) -> dict[str, dict[str, int]]:
+    """What the log holds for one fixture, by date: games, goals, assists.
+
+    Read through `views.soccer()` — the same resolution of which fixture a
+    session belongs to that the Soccer page uses — so a goal shown beside a
+    league fixture is the goal shown in the Matches table. Two logged games on
+    one date (it happens) add up.
+    """
+    from ledger.report import views  # here, not at the top: views imports nothing from this module
+
+    out: dict[str, dict[str, int]] = {}
+    if not (start and end and fixture):
+        return out
+    for g in views.soccer(conn, start, end).get("games", []):
+        if g.get("pickup") or g.get("fixture") != fixture:
+            continue
+        row = out.setdefault(g["date"], {"games": 0, "goals": 0, "assists": 0})
+        row["games"] += 1
+        row["goals"] += int(g.get("goals") or 0)
+        row["assists"] += int(g.get("assists") or 0)
+    return out
+
+
 def _with_opponent(
     f: dict[str, Any], my_team: str, by_team: dict[str, Any], fixtures: list[dict[str, Any]],
+    logged: dict[str, dict[str, int]] | None = None,
 ) -> dict[str, Any]:
     """Attach the other side's league row, so a match can be read in context
     rather than as a bare name. Shared by the live cards and the seasons."""
@@ -694,6 +724,9 @@ def _with_opponent(
         "opponent": opponent,
         "opponent_standing": dict(row) if row else None,
         "opponent_note": describe_opponent(dict(row) if row else None, opponent, fixtures, my_team),
+        # Your own line for the game, from the log, or None when nothing was
+        # logged that day — which the card says, rather than showing a zero.
+        "logged": (logged or {}).get(f["date"]),
     }
 
 
@@ -1106,8 +1139,6 @@ def seasons(conn: sqlite3.Connection, *, today: str | None = None) -> list[dict[
     The log is read the way the Soccer page reads it, so a goal counted here
     is a goal counted there.
     """
-    from ledger.report import views  # here, not at the top: views imports nothing from this module
-
     today = today or date.today().isoformat()
     out: list[dict[str, Any]] = []
     for lg in conn.execute("SELECT * FROM league"):
@@ -1146,14 +1177,10 @@ def seasons(conn: sqlite3.Connection, *, today: str | None = None) -> list[dict[
         start, end = (dates[0], dates[-1]) if dates else (None, None)
         archived = lg["archived_at"] is not None
 
-        logged = {"games": 0, "goals": 0, "assists": 0}
-        if start and end:
-            for g in views.soccer(conn, start, end).get("games", []):
-                if g.get("pickup") or g.get("fixture") != lg["fixture"]:
-                    continue
-                logged["games"] += 1
-                logged["goals"] += int(g.get("goals") or 0)
-                logged["assists"] += int(g.get("assists") or 0)
+        by_date = _logged_by_date(conn, lg["fixture"], start, end)
+        logged = {
+            k: sum(v[k] for v in by_date.values()) for k in ("games", "goals", "assists")
+        }
 
         out.append({
             "provider_id": lg["provider_id"], "name": lg["name"], "fixture": lg["fixture"],
@@ -1171,7 +1198,9 @@ def seasons(conn: sqlite3.Connection, *, today: str | None = None) -> list[dict[
             # The whole table and every one of our fixtures, as the live card
             # has them. This is the record; nothing is trimmed from it.
             "standings": standings,
-            "my_fixtures": [_with_opponent(f, lg["my_team"], by_team, fixtures) for f in my_fx],
+            "my_fixtures": [
+                _with_opponent(f, lg["my_team"], by_team, fixtures, by_date) for f in my_fx
+            ],
             "record": (
                 {k: me.get(k) for k in ("gp", "w", "t", "l", "gf", "ga", "gd", "pts", "wp")}
                 if me else None
