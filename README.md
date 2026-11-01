@@ -160,6 +160,19 @@ fields; `scripts/inventory.py --check` fails when a panel is missing from it.
 on overlap, clipped text, empty panels, unlabelled periods, low contrast and
 small tap targets.
 
+## Contributing
+
+Ledger is a single-user app published as open source. Two rules for anything
+that lands in this repository:
+
+- **Nothing personal.** No real training data, names, teams, venues, towns,
+  health details or weights in code, tests, docs or screenshots. Fixtures
+  use invented names; screenshots come from `scripts/demo_data.py`; anything
+  particular to one person or venue is configuration in `.env`.
+- **Nothing secret.** Credentials, tokens, databases and the `notebook/`
+  folder stay gitignored. If you think something sensitive has been
+  committed, open an issue saying only that — not what it was.
+
 ## Development
 
 ```sh

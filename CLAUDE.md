@@ -24,6 +24,35 @@ rucking, fasting on one load scale (Foster session-RPE: `load = rpe × minutes`)
 - Philosophy: no streaks, rolling windows only, no hype copy, ACWR is a
   heuristic and never a verdict.
 
+## This is a public repository — nothing personal, nothing secret
+
+The repo is public open source. Every tracked file, every commit message and
+every screenshot is on the internet. The one person it was built for is not
+in it, and must not get back in. Before any commit:
+
+- **No real training data.** No sessions, scorelines, weights, paces, sleep
+  or heart figures from a real record — not in docs, tests, comments,
+  fixtures or images. Screenshots come from `scripts/demo_data.py`, never
+  from a live database.
+- **No identity.** No names, handles, emails, team names, opponents, venues,
+  towns, league ids, device ids or local paths. Fixtures and docs use the
+  invented set: Sparrows FC / Sparrows United / Night Owls / Harbour Lights,
+  "the ezleagues venue", "the DaySmart venue", "Riverside". Anything per
+  person or per venue is configuration in `.env` with a placeholder default
+  in `.env.example`, never a constant in code.
+- **No health details and no quotes.** No injuries, conditions, fasting
+  lengths, bodyweight readings, or remarks attributed to the user. Write
+  "the user", describe decisions, do not quote them.
+- **No secrets.** `.env`, tokens, databases, backups and `notebook/` are
+  gitignored; keep them that way and never paste their contents anywhere.
+- **History counts.** Git history is public too, and GitHub serves dropped
+  commits by hash until it collects them. If something personal lands in a
+  commit, say so immediately — the fix is a history rewrite and a repo
+  recreate, not a follow-up commit.
+
+Before pushing, sweep: `git ls-files | xargs grep -n -i "<the terms above>"`
+and `git status` for anything untracked that should be ignored.
+
 ## Verify before reporting — not optional
 
 Every change is checked before it is called done. Not "it should work", not
