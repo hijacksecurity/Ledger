@@ -2545,50 +2545,103 @@ svg.plot text.reflabel { fill: var(--ink); font-size: 12px; font-weight: 700; le
    tag; the longer windows sit under it as labelled rows, each with its own
    tag, so the four timelines are read top to bottom and never side by side
    in one undifferentiated line. */
+/* ── recovery cards ──────────────────────────────────────────────────────── */
+
 .rc-cards { display: grid; gap: var(--gap); grid-template-columns: 1fr; }
 @media (min-width: 640px) { .rc-cards { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1100px) { .rc-cards { grid-template-columns: repeat(4, 1fr); } }
-/* Five cards — the Week page's snapshot — take three tracks from 900px up
-   and stay there: four would strand one card alone on a second row, and five
-   abreast squeezed "Resting HR" onto two lines and wrapped every row. */
-@media (min-width: 900px) { .rc-cards[data-n="5"] { grid-template-columns: repeat(3, 1fr); } }
-.rc-card {
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
-  padding: .85rem .95rem .7rem; display: flex; flex-direction: column; gap: .55rem; min-width: 0;
-}
-.rc-card-head { display: flex; align-items: center; gap: .5rem; min-width: 0; }
-.rc-card-head svg { width: 1.15rem; height: 1.15rem; flex: none; color: var(--rc-hue, var(--ink-2)); }
-.rc-card-head .rc-card-name { font-weight: 600; color: var(--ink); }
-.rc-card-head .rc-against { margin-left: auto; font-size: var(--t-xs); color: var(--ink-3); text-align: right; white-space: nowrap; }
-.rc-card-now { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
-.rc-card-now .rc-big-v { font-size: 1.85rem; font-weight: 700; letter-spacing: -.02em; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
-.rc-card-now .rc-big-v u { text-decoration: none; font-size: .95rem; font-weight: 500; color: var(--ink-3); margin-left: .15rem; }
-.rc-card-now.is-toned .rc-big-v { color: var(--tone-ink); }
-.rc-card-when { font-size: var(--t-xs); color: var(--ink-3); margin-top: -.3rem; }
-.rc-card-rows { display: grid; margin: 0; border-top: 1px solid var(--line); }
-.rc-card-rows > div {
-  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .4rem;
-  padding: .42rem 0; border-bottom: 1px solid var(--line);
-}
-.rc-card-rows > div:last-child { border-bottom: 0; }
-.rc-card-rows dt { font-size: var(--t-xs); color: var(--ink-3); letter-spacing: .02em; }
-.rc-card-rows dd { margin: 0; display: flex; align-items: center; gap: .4rem; justify-content: flex-end; flex-wrap: wrap; }
-.rc-card-rows dd .rc-row-v { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.rc-card-rows dd.is-toned .rc-row-v { color: var(--tone-ink); }
-.rc-card-rows dd .rc-n { color: var(--ink-3); font-size: .74rem; }
+/* Nothing stranded at any width. Six cards — the Week page's snapshot — are
+   three by two from 900px up. Seven — the Recovery page — let the sleep card
+   take two tracks, so two columns give one full row then three, and four give
+   sleep, score, HRV on the first row and the other four on the second. */
+@media (min-width: 900px) { .rc-cards[data-n="6"] { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 640px) { .rc-cards[data-n="7"] .rc-card[data-key="sleep_hours"] { grid-column: span 2; } }
 
-/* The band as a tag: a filled pill in the band's tone, white-on-tone ink
-   kept readable by the ramp's `-ink` variants in both themes. */
-.rc-tag {
-  display: inline-flex; align-items: center; gap: .35rem; font-size: .72rem; font-weight: 600; letter-spacing: .02em; line-height: 1.55;
-  padding: 0 .5rem 0 .4rem; border-radius: 999px; white-space: nowrap;
-  /* Ink on a tinted ground: the tone is carried by the dot, the wash and the
-     border, so the words stay at full contrast at 11px. */
-  background: color-mix(in srgb, var(--tone, var(--ink-3)) 14%, transparent); color: var(--ink);
-  border: 1px solid color-mix(in srgb, var(--tone, var(--ink-3)) 45%, transparent);
+.rc-card {
+  position: relative; overflow: hidden; min-width: 0;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px;
+  padding: .9rem 1rem .75rem; display: flex; flex-direction: column; gap: .6rem;
 }
-.rc-tag::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--tone, var(--ink-3)); flex: none; }
-.rc-tag.rc-tag-none { background: var(--surface-3); color: var(--ink-2); border-color: var(--line); }
+/* A wash of the measure's own hue in the top corner, so the card reads as its
+   subject before a word of it is. The tone of the night never reaches the
+   chrome: it lives in the number, the reading and the meter. */
+.rc-card::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 75% at 0% 0%, color-mix(in srgb, var(--rc-hue, var(--ink-3)) 14%, transparent), transparent 58%);
+}
+.rc-card > * { position: relative; }
+.rc-card-head { display: flex; align-items: center; gap: .55rem; min-width: 0; }
+.rc-ico {
+  width: 1.75rem; height: 1.75rem; border-radius: 9px; display: grid; place-items: center; flex: none;
+  background: color-mix(in srgb, var(--rc-hue, var(--ink-3)) 16%, transparent); color: var(--rc-hue, var(--ink-2));
+}
+.rc-ico svg { width: 1rem; height: 1rem; }
+.rc-card-name { font-size: var(--t-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+.rc-against { margin-left: auto; font-size: var(--t-xs); color: var(--ink-3); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rc-card-now { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; margin-top: .1rem; }
+.rc-big-v { font-size: 2.35rem; font-weight: 800; letter-spacing: -.035em; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.rc-big-v u { text-decoration: none; font-size: 1rem; font-weight: 600; color: var(--ink-3); margin-left: .2rem; letter-spacing: 0; }
+.rc-card.is-toned .rc-big-v { color: var(--tone-ink); }
+
+/* The reading: a dot in the tone with a soft halo, and the band's own word —
+   no chip, no border. The small form sits in the rows under the number. */
+.rc-read {
+  display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap;
+  font-size: .78rem; font-weight: 700; letter-spacing: .03em; color: var(--tone-ink, var(--ink-2));
+}
+.rc-read::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--tone, var(--ink-3));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone, var(--ink-3)) 22%, transparent);
+}
+.rc-read.rc-read-none { color: var(--ink-2); font-weight: 600; }
+.rc-read.rc-read-none::before { background: transparent; border: 1.5px solid var(--ink-3); box-shadow: none; box-sizing: border-box; }
+.rc-read-sm { font-size: .7rem; gap: .3rem; }
+.rc-read-sm::before { width: 6px; height: 6px; box-shadow: none; }
+
+/* The meter: the scale itself, drawn as a track. Segments are the bands, lit
+   where the reading sits; a tick is the need or the mean; the mark is last
+   night. Everything is positioned in percent of the measure's own domain. */
+.rc-meter { position: relative; height: 8px; border-radius: 999px; margin: .2rem 0 .15rem; background: var(--surface-3); }
+.rc-seg { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: color-mix(in srgb, var(--tone, var(--ink-3)) 22%, transparent); }
+.rc-seg.tone-none { background: color-mix(in srgb, var(--ink-3) 18%, transparent); }
+.rc-seg.is-on { background: var(--tone, var(--ink-3)); }
+.rc-seg.is-on.tone-none { background: var(--ink-3); }
+.rc-meter[data-kind="need"] .rc-seg.is-on { background: color-mix(in srgb, var(--tone, var(--ink-3)) 40%, transparent); }
+.rc-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--tone, var(--ink-3)); }
+.rc-tick { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink); opacity: .75; }
+.rc-mark {
+  position: absolute; top: 50%; width: 14px; height: 14px; margin-left: -7px; transform: translateY(-50%);
+  border-radius: 50%; background: var(--tone, var(--ink-2)); border: 2.5px solid var(--surface-2);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--tone, var(--ink-3)) 60%, transparent), 0 1px 3px rgba(0, 0, 0, .25);
+}
+.rc-mark.tone-none { background: var(--ink-2); }
+
+/* Last night's stages under the sleep number: deep, REM, light, awake, with
+   the minutes of each. Light is what is left once deep and REM are out. */
+.rc-stages { display: grid; gap: .4rem; }
+.rc-stages-bar { display: flex; height: 6px; border-radius: 999px; overflow: hidden; gap: 2px; }
+.rc-stages-bar i { display: block; height: 100%; background: var(--st); }
+.rc-st-deep  { --st: color-mix(in srgb, var(--sleep) 72%, black); }
+.rc-st-rem   { --st: var(--sleep); }
+.rc-st-light { --st: color-mix(in srgb, var(--sleep) 42%, transparent); }
+.rc-st-awake { --st: color-mix(in srgb, var(--ink-3) 40%, transparent); }
+.rc-stages-key { display: flex; flex-wrap: wrap; gap: .2rem .8rem; font-size: var(--t-xs); color: var(--ink-3); }
+.rc-stages-key span { display: inline-flex; align-items: center; gap: .35rem; font-variant-numeric: tabular-nums; }
+.rc-stages-key i { width: 8px; height: 8px; border-radius: 2px; background: var(--st); }
+
+/* Rows sit at the foot of every card: the sleep card is taller by its stages
+   bar, and with the rows pinned the whole grid shares one baseline. */
+.rc-card-rows { display: grid; margin: auto 0 0; padding-top: .1rem; border-top: 1px solid var(--line); }
+.rc-card-rows > div {
+  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .5rem;
+  padding: .45rem 0; border-bottom: 1px solid var(--line);
+}
+.rc-card-rows > div:last-child { border-bottom: 0; padding-bottom: .15rem; }
+.rc-card-rows dt { font-size: var(--t-xs); color: var(--ink-3); letter-spacing: .02em; white-space: nowrap; }
+.rc-card-rows dd { margin: 0; min-width: 0; display: flex; align-items: center; gap: .45rem; justify-content: flex-end; flex-wrap: wrap; }
+.rc-card-rows dd .rc-row-v { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.rc-card-rows dd.is-toned .rc-row-v { color: var(--tone-ink); }
+.rc-card-rows dd .rc-n { color: var(--ink-3); font-size: .72rem; }
 
 /* Reference labels on a figure get a halo so they stay legible over columns
    and inside a shaded band. */

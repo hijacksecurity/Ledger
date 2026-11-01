@@ -139,7 +139,7 @@ dated D is the night that **ended** on the morning of D.
 | What the record says | `#/recovery` | `patternFindings()`: match recovery cost (D+1..D+3 vs rest mornings), G+A and RPE after nights that met / missed the need, run pace after balanced / below-range HRV, the weekday that costs sleep, stress → next night's score. Each has a minimum n and fires only past it |
 | The morning after, The day after | `#/recovery` | Row D+1 grouped by what day D was; sessions on D paired with row D, split on `sleep_need_min` and the HRV range |
 | Read-out, Every night | `#/recovery` | The table prints every row the charts drew, with Garmin's need and range per night |
-| Recovery (five cards: sleep, HRV, resting HR, readiness, body battery at wake) | `#/week` | `measureCards()` in `recovery-cards.js` — the **same builder and rows** as *Last night, and the longer term* on `#/recovery`; last night large, then the week on screen ("This week" or "Week of …") and the last 28 nights, each tagged on its scale (invariant 17) |
+| Recovery (six cards: sleep, sleep score, HRV, resting HR, readiness, body battery at wake) | `#/week` | `measureCards()` in `recovery-cards.js` — the **same builder and rows** as *Last night, and the longer term* on `#/recovery`; last night large, then the week on screen ("This week" or "Week of …") and the last 28 nights, each tagged on its scale and drawn on a meter of that scale (invariant 17) |
 | Week footnote (HRV, RHR, readiness, sleep: week vs 28-day) | `#/week` | Server-side `_recovery()` in `report/weekly.py` — equals the *This week* / *Last 28 nights* columns (invariant 16) |
 | Sleep habit | `#/habits`, `#/week`, `#/calendar` | Reads `sleep_hours` against `habit.target` |
 
@@ -541,7 +541,7 @@ Things that must agree. Each one is here because it once did not.
 | 14 | The Habits pillar on `#/week` == the Habits pillar on `#/score`, same week |
 | 15 | A habit's rate == its own `totals.met`/`totals.scored`; no surface recomputes either |
 | 16 | Recovery: the `#/week` footnote (week mean vs 28-day mean of HRV, resting HR, readiness, sleep) == the *This week* and *Last 28 nights* columns on `#/recovery` — verified equal on 2026-10-31; both are plain means over `metric_daily` with the same Monday and the same trailing window |
-| 17 | The five Recovery cards on `#/week` == the same five cards on `#/recovery` (last night, the week, the 28 nights, and every tag): one builder, `measureCards()` in `recovery-cards.js`, fed the same `/api/metrics` rows; neither page computes a reading itself |
+| 17 | The six Recovery cards on `#/week` == the same six cards on `#/recovery` (last night, the week, the 28 nights, and every tag): one builder, `measureCards()` in `recovery-cards.js`, fed the same `/api/metrics` rows; neither page computes a reading itself |
 
 ## Verifying
 

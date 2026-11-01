@@ -128,12 +128,12 @@ export function mount(host, route) {
     kicker: 'One tap',
   });
 
-  /* The morning's snapshot: five of the Recovery page's cards, built by the
+  /* The morning's snapshot: six of the Recovery page's cards, built by the
      same code (`recovery-cards.js`) from the same rows, so the number here is
      the number there. Last night large, then the week and the 28 nights under
      it, each on the scale named on the card. It sits with Habits because both
      are about today; everything below reports what already happened. The
-     charts, the findings and the other two measures stay on `#/recovery` —
+     charts, the findings and the stress card stay on `#/recovery` —
      drawing them here would be that page, twice. */
   const pRecov = panel({
     title: 'Recovery', sub: ' ', wide: true, kicker: 'Last night',
@@ -197,7 +197,9 @@ export function mount(host, route) {
   const foot = el('div', { class: 'footnotes' });
 
   nav.append(jump, btnToday);
-  host.append(nav, hero, stripHost, pDist, pHabits, pRecov, rowA, pSplit, pRead, rowB, foot);
+  /* The read-out closes the page: it is the week in plain facts, the thing
+     to read once everything above has been looked at, not before. */
+  host.append(nav, hero, stripHost, pDist, pHabits, pRecov, rowA, pSplit, rowB, pRead, foot);
 
   heroFig.append(el('div', { class: 'sk', style: 'height:5.5rem;width:9rem' }));
   skeletonLines(2, heroAside);
