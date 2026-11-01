@@ -354,13 +354,9 @@ export function mount(host, route, { setQuery }) {
   const bandLegend = (scale) => BANDS[scale].map((b) => ({ label: `${b.label} ${b.min}+`, color: toneColor(b.tone) })).reverse();
 
   /* Every column carries its number, which needs about 34px of slot; the
-     chart grows past the panel and scrolls rather than thinning the labels.
-     A scrolled chart opens at its right edge, where last night is. */
-  const DENSITY = { labels: 'all', minSlot: 34 };
-  function showLatest(p) {
-    const plot = p.body.querySelector('.fig-plot');
-    if (plot) requestAnimationFrame(() => { plot.scrollLeft = plot.scrollWidth; });
-  }
+     chart grows past the panel and scrolls rather than thinning the labels,
+     and opens at its right edge, where last night is. */
+  const DENSITY = { labels: 'all', minSlot: 34, openAtEnd: true };
 
   function coverNote(rows, key) {
     const c = coverage(rows, key);
@@ -379,7 +375,7 @@ export function mount(host, route, { setQuery }) {
       height: 280, unit: 'h', periodLabel: 'Night ending', ...DENSITY,
       series: [{ key: 'v', label: 'Asleep', color: token('sleep') }],
       points: pts,
-      guides: need ? [{ value: need, label: `need ${need.toFixed(1)} h` }] : [],
+      guides: need ? [{ value: need, label: `need ${need.toFixed(1)} h`, short: `${need.toFixed(1)} h` }] : [],
       legendExtra: [
         ...(need ? [{ label: `Your need ${need.toFixed(1)} h`, color: token('ink-3'), shape: 'line' }] : []),
         ...(need ? [
@@ -393,7 +389,6 @@ export function mount(host, route, { setQuery }) {
     }));
     const met = need ? rows.filter((r) => { const b = readingOf(ctx, 'sleep_hours', r.sleep_hours, r); return b && b.tone === 'solid'; }).length : null;
     const of = rows.filter((r) => isNum(r.sleep_hours)).length;
-    showLatest(pSleep);
     pSleep.body.append(el('p', { class: 'sub', text:
       `${weekVsRange(ctx, 'sleep_hours', 1, 'h')}${need ? ` ${met} of ${of} nights met the need Garmin puts at ${need.toFixed(1)} h.` : ' Garmin\'s sleep need arrives with the next sync.'}` }));
   }
@@ -415,7 +410,6 @@ export function mount(host, route, { setQuery }) {
       legendExtra: bandLegend(scale),
       format: (v) => String(Math.round(v)), formatShort: (v) => String(Math.round(v)),
     }));
-    showLatest(p);
     const extra = cover ? coverNote(rows, key) : null;
     p.body.append(el('p', { class: 'sub', text: `${weekVsRange(ctx, key, 0, '')}${extra ? ` ${extra}` : ''}` }));
   }
@@ -431,7 +425,7 @@ export function mount(host, route, { setQuery }) {
       height: 260, unit: 'ms', periodLabel: 'Night ending', ...DENSITY,
       series: [{ key: 'v', label: 'HRV', color: token('hrv') }],
       points: pts,
-      bands: range ? [{ from: range.low, to: range.high, color: toneColor('solid'), label: `balanced ${range.low}–${range.high} ms` }] : [],
+      bands: range ? [{ from: range.low, to: range.high, color: toneColor('solid'), label: `balanced ${range.low}–${range.high} ms`, short: `${range.low}–${range.high}` }] : [],
       legendExtra: range ? [
         { label: `Balanced range ${range.low}–${range.high} ms`, color: toneColor('solid'), shape: 'band' },
         { label: 'Balanced', color: toneColor('solid') },
@@ -441,7 +435,6 @@ export function mount(host, route, { setQuery }) {
       ] : [],
       format: (v) => String(Math.round(v)), formatShort: (v) => String(Math.round(v)),
     }));
-    showLatest(pHrv);
     const inRange = range ? rows.filter((r) => { const b = readingOf(ctx, 'hrv_ms', r.hrv_ms, r); return b && b.label === 'Balanced'; }).length : null;
     const of = rows.filter((r) => isNum(r.hrv_ms)).length;
     pHrv.body.append(el('p', { class: 'sub', text:
@@ -459,7 +452,7 @@ export function mount(host, route, { setQuery }) {
       height: 240, unit: 'bpm', periodLabel: 'Night ending', ...DENSITY,
       series: [{ key: 'v', label: 'Resting HR', color: token('rhr') }],
       points: pts,
-      guides: rhrMean != null ? [{ value: rhrMean, label: `28-night mean ${Math.round(rhrMean)}` }] : [],
+      guides: rhrMean != null ? [{ value: rhrMean, label: `28-night mean ${Math.round(rhrMean)}`, short: `mean ${Math.round(rhrMean)}` }] : [],
       legendExtra: rhrMean != null ? [
         { label: `28-night mean ${Math.round(rhrMean)}`, color: token('ink-3'), shape: 'line' },
         { label: '3+ under', color: toneColor('solid') },
@@ -469,7 +462,6 @@ export function mount(host, route, { setQuery }) {
       ] : [],
       format: (v) => String(Math.round(v)), formatShort: (v) => String(Math.round(v)),
     }));
-    showLatest(pRhr);
     pRhr.body.append(el('p', { class: 'sub', text: `${weekVsRange(ctx, 'resting_hr', 0, 'bpm')} Lower is better; a night five or more over your own mean is the one to notice.` }));
   }
 
@@ -513,7 +505,7 @@ export function mount(host, route, { setQuery }) {
         colors: { h: (sleepBand(w.value, need) && toneColor(sleepBand(w.value, need).tone)) || token('sleep') },
         note: `${w.n} night${w.n === 1 ? '' : 's'}`,
       })),
-      guides: need ? [{ value: need, label: `need ${need.toFixed(1)} h` }] : [],
+      guides: need ? [{ value: need, label: `need ${need.toFixed(1)} h`, short: `${need.toFixed(1)} h` }] : [],
       format: (v) => v.toFixed(1), formatShort: (v) => (Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)),
     }));
     const have = wd.filter((w) => w.n);

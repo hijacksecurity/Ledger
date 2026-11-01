@@ -10,12 +10,11 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
-    # Pinned to the garth-based line on purpose. Newer releases replaced the
-    # oauth1/oauth2 token pair with a single garmin_tokens.json and a
-    # multi-strategy SSO login that Cloudflare blocks from a container. The
-    # 0.2.x flow resumes cleanly from tokens minted on the host and needs no
-    # password at all, which is exactly what BRIEF §5 asks for.
-    "garminconnect==0.2.25",
+    # 0.3.5 fixed GHSA-wjhr-76vg-2hvc (token files written world-readable).
+    # The 0.3 line dropped garth: tokens live in one file under GARMINTOKENS
+    # and the old oauth1/oauth2 pair is refused, so moving a working install
+    # onto it means running `ledger garmin-login` once more, from a terminal.
+    "garminconnect>=0.3.5,<0.4",
     "jinja2>=3.1",
     "python-dotenv>=1.0",
 ]

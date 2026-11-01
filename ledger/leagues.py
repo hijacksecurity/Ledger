@@ -442,7 +442,8 @@ def daysmart_league(league_id: str, get=None) -> League:
     # Field"); the sport does ("Soccer, Indoor"), and the venue badge keys
     # off that word, so it is carried onto every fixture.
     sport = first("sports") or ""
-    surface = "indoor" if "indoor" in sport.lower() else "outdoor" if "outdoor" in sport.lower() else ""
+    sport_l = sport.lower()
+    surface = "indoor" if "indoor" in sport_l else "outdoor" if "outdoor" in sport_l else ""
     home_facility = str(attrs.get("facility_id") or "")
 
     # Inactive teams are ones that withdrew before playing; Dash hides them and

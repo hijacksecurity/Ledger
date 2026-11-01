@@ -122,6 +122,12 @@ logged.
 **No streaks.** `core/windows.py` is rolling-window only. A missed day dips a
 count; it never resets one. There is a test asserting exactly this.
 
+**Upgrading the Garmin library means logging in again.** `garminconnect` 0.3
+stores its tokens in one file, written owner-only (the fix for a published
+advisory), and refuses the two-file store older versions wrote. After moving
+across that line run `ledger garmin-login` once from a terminal, then rebuild
+the container.
+
 **Rate limiting is not optional.** Every Garmin call goes through
 `GarminClient.call()`, which paces to 2.5 s and backs off on 429/5xx. Garmin's
 API is unofficial and blocks accounts that hammer it. Do not add a code path

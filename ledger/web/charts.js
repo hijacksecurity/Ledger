@@ -37,31 +37,51 @@ import {
  */
 const refLabelWidth = (text) => Math.round(text.length * 6.9) + 14;
 
-/** How much left gutter the reference labels need, so they sit beside the
- *  plot rather than over the first columns and their numbers. */
-function refGutter(spec) {
+/* A plot narrower than this gets each mark's short label ("41–67") instead
+   of the full one ("balanced 41–67 ms"); the legend still carries the full
+   wording either way. */
+const REF_FULL_MIN_WIDTH = 640;
+
+const refText = (mark, width) => (width < REF_FULL_MIN_WIDTH && mark.short ? mark.short : mark.label);
+
+/** The right-hand gutter the reference labels need, so they sit beside the
+ *  plot — clear of the columns, their numbers, and the axis ticks on the
+ *  left. Zero when nothing is labelled. */
+function refGutter(spec, width) {
   const texts = [
-    ...(spec.bands || []).map((b) => b.label),
-    ...(spec.guides || []).map((g) => g.label),
+    ...(spec.bands || []).map((b) => (b.label ? refText(b, width) : null)),
+    ...(spec.guides || []).map((g) => (g.label ? refText(g, width) : null)),
   ].filter(Boolean);
-  return texts.length ? Math.max(...texts.map(refLabelWidth)) + 16 : 0;
+  return texts.length ? Math.max(...texts.map(refLabelWidth)) + 10 : 0;
 }
 
-function drawReference(svg, spec, { y, padL, plotW, clampLo, clampHi }) {
+/**
+ * A shaded horizontal band and a labelled horizontal rule, drawn under the
+ * data. Both exist for the Recovery page, where a figure means nothing until
+ * it is seen against the wearer's own range — HRV against Garmin's balanced
+ * band, a night against its sleep need — and both are plainly reference, not
+ * data: the band is a faint wash, the guide a dashed hairline.
+ *
+ * The label is a small boxed tag in the gutter to the right of the plot, on
+ * the line it names (or centred in the band). Out there it cannot collide
+ * with a column, a column's number, or a tick on the left axis, whatever
+ * value the mark sits at.
+ *
+ *   spec.bands  = [{ from, to, color, label, short }]     from/to in data units
+ *   spec.guides = [{ value, color, label, short, dashed }]
+ */
+function drawReference(svg, spec, { y, padL, plotW, clampLo, clampHi, width }) {
   const clamp = (v) => Math.max(clampLo, Math.min(clampHi, v));
-  /* A boxed label, pinned to the left edge of the plot where the eye starts,
-     set in the tick face at a size that can be read without leaning in. The
-     box is the surface colour with the mark's colour as a border, so it sits
-     on top of columns and inside a band without the bars showing through. */
-  const labelBox = (text, yText, color) => {
+  const labelBox = (mark, yMid, color) => {
+    const text = refText(mark, width);
     const w = refLabelWidth(text);
     const g = el('g', { class: 'reflabel-g' });
     g.append(el('rect', {
-      class: 'refbox', x: padL - w - 8, y: yText - 12, width: w, height: 17, rx: 4,
+      class: 'refbox', x: padL + plotW + 6, y: yMid - 9, width: w, height: 18, rx: 4,
       stroke: color || null,
     }));
     g.append(el('text', {
-      class: 'reflabel', x: padL - 15, y: yText, 'text-anchor': 'end', text,
+      class: 'reflabel', x: padL + plotW + 13, y: yMid + 4, 'text-anchor': 'start', text,
       fill: color || null,
     }));
     return g;
@@ -78,7 +98,7 @@ function drawReference(svg, spec, { y, padL, plotW, clampLo, clampHi }) {
     }));
     svg.append(el('line', { class: 'refedge', x1: padL, x2: padL + plotW, y1: top, y2: top, stroke: b.color || null }));
     svg.append(el('line', { class: 'refedge', x1: padL, x2: padL + plotW, y1: bot, y2: bot, stroke: b.color || null }));
-    if (b.label) labels.push(labelBox(b.label, top + 14, b.color));
+    if (b.label) labels.push(labelBox(b, (top + bot) / 2, b.color));
   }
   for (const g of spec.guides || []) {
     if (!Number.isFinite(g.value)) continue;
@@ -87,10 +107,10 @@ function drawReference(svg, spec, { y, padL, plotW, clampLo, clampHi }) {
       class: 'refguide', x1: padL, x2: padL + plotW, y1: gy, y2: gy,
       stroke: g.color || null, 'stroke-dasharray': g.dashed === false ? null : '6 4',
     }));
-    if (g.label) labels.push(labelBox(g.label, gy - 7, g.color));
+    if (g.label) labels.push(labelBox(g, gy, g.color));
   }
-  /* Returned, not appended: the caller adds them after the data so a column
-     and its number can never cover one. */
+  /* Returned, not appended: the caller adds them after the data so nothing
+     drawn later can sit on top of one. */
   return labels;
 }
 
@@ -255,6 +275,11 @@ export function figure(host, spec) {
     const wide = svg.clientWidth > plotWrap.clientWidth + 1;
     plotWrap.classList.toggle('is-wide', wide);
     plotWrap.classList.toggle('scroll', wide);
+    /* A chart of nights opens on the latest night, not the oldest: the right
+       edge is where today is and where the reference tags sit. Re-applied on
+       every redraw, because a resize rebuilds the SVG and would otherwise
+       leave the scroll at the left. */
+    if (wide && spec.openAtEnd) plotWrap.scrollLeft = plotWrap.scrollWidth;
     drawn = true;
   };
 
@@ -344,8 +369,8 @@ function drawColumns(spec, width, format, formatShort) {
     : niceScale(Math.max(...heads, refTop, 0));
 
   const tickTexts = ticks.map(formatShort);
-  const padL = spec.padLeft || Math.max(30, 10 + Math.max(...tickTexts.map((t) => t.length)) * 6.4, refGutter(spec));
-  const padR = spec.padRight || 10;
+  const padL = spec.padLeft || Math.max(30, 10 + Math.max(...tickTexts.map((t) => t.length)) * 6.4);
+  const padR = Math.max(spec.padRight || 10, refGutter(spec, width));
   const padT = 20;
   const padB = spec.hideAxis ? 10 : 26;
 
@@ -385,7 +410,7 @@ function drawColumns(spec, width, format, formatShort) {
     svg.append(el('line', { class: t === 0 ? 'axis' : 'grid', x1: padL, x2: padL + plotW, y1: y(t), y2: y(t) }));
     svg.append(el('text', { class: 'tick', x: padL - 8, y: y(t) + 3.5, 'text-anchor': 'end', text: formatShort(t) }));
   }
-  const refLabels = drawReference(svg, spec, { y, padL, plotW, clampLo: 0, clampHi: max });
+  const refLabels = drawReference(svg, spec, { y, padL, plotW, clampLo: 0, clampHi: max, width });
 
   /* Selective direct labels: the extreme and the endpoint, never every column.
      A normalised chart opts out — every total is 100% and saying so twice is
@@ -562,8 +587,8 @@ function drawLine(spec, width, format, formatShort, live) {
   const tickTexts = band.ticks.map(formatShort);
   /* padLeft can be forced so two stacked figures share an x origin exactly —
      that is what makes a small multiple readable instead of merely adjacent. */
-  const padL = spec.padLeft || Math.max(30, 10 + Math.max(...tickTexts.map((t) => t.length)) * 6.4, refGutter(spec));
-  const padR = spec.padRight || 12;
+  const padL = spec.padLeft || Math.max(30, 10 + Math.max(...tickTexts.map((t) => t.length)) * 6.4);
+  const padR = Math.max(spec.padRight || 12, refGutter(spec, width));
   const padT = 16;
   const padB = spec.hideAxis ? 8 : 24;
   const height = spec.height || 220;
@@ -582,7 +607,7 @@ function drawLine(spec, width, format, formatShort, live) {
     svg.append(el('line', { class: 'grid', x1: padL, x2: padL + plotW, y1: y(t), y2: y(t) }));
     svg.append(el('text', { class: 'tick', x: padL - 8, y: y(t) + 3.5, 'text-anchor': 'end', text: formatShort(t) }));
   }
-  const refLabels = drawReference(svg, spec, { y, padL, plotW, clampLo: band.min, clampHi: band.max });
+  const refLabels = drawReference(svg, spec, { y, padL, plotW, clampLo: band.min, clampHi: band.max, width });
 
   if (!spec.hideAxis) {
     const labelEvery = Math.max(1, Math.ceil((n * 62) / plotW));

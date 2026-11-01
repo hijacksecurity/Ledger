@@ -7,7 +7,7 @@ down to make a backfill finish sooner.
 Auth model:
   * Log in ONCE interactively with email + password (`ledger garmin-login`).
     If MFA is on, the library prompts for a code — this cannot be automated.
-  * garth persists OAuth1/OAuth2 tokens to `GARMINTOKENS`. Mount it as a volume.
+  * The library persists its tokens under `GARMINTOKENS`. Mount it as a volume.
   * Every later run resumes from those tokens. Repeated password logins are the
     fastest way to get an account flagged.
   * On refresh failure: log, exit non-zero, let cron surface it. Never silently
@@ -76,10 +76,12 @@ class GarminClient:
         from garminconnect import Garmin  # imported lazily: keeps tests offline
 
         # An empty directory is the normal case on a fresh volume, and it is not
-        # the same as a missing one. Without this check garth falls through to a
-        # password login and reports "Username and password are required",
-        # which sends you looking at your credentials when the real answer is
-        # that the one-time login has never been run.
+        # the same as a missing one. Without this check the library falls
+        # through to a password login and reports "Username and password are
+        # required", which sends you looking at your credentials when the real
+        # answer is that the one-time login has never been run. A directory
+        # holding the old two-file token store gets the library's own message,
+        # which says to log in again.
         if not self.token_dir.exists() or not any(self.token_dir.iterdir()):
             raise GarminAuthError(
                 f"no Garmin tokens in {self.token_dir} — the one-time login has "
@@ -104,8 +106,8 @@ class GarminClient:
         """
         from garminconnect import Garmin
 
-        # `return_on_mfa` only exists on newer releases; the pinned 0.2.x line
-        # prompts on stdin instead. Try the non-blocking path, fall back.
+        # `return_on_mfa` only exists on 0.3+; the old 0.2 line prompted on
+        # stdin instead. Try the non-blocking path, fall back.
         try:
             api = Garmin(email=email, password=password, return_on_mfa=True)
         except TypeError:
@@ -123,7 +125,15 @@ class GarminClient:
             api.resume_login(payload, str(mfa_code).strip())
 
         self.token_dir.mkdir(parents=True, exist_ok=True)
-        api.garth.dump(str(self.token_dir))
+        if hasattr(api, "garth"):
+            # The 0.2 line kept tokens on a garth session (two files).
+            api.garth.dump(str(self.token_dir))
+        else:
+            # 0.3+: one token file under the directory, written 0600 inside
+            # 0700 — the fix for GHSA-wjhr-76vg-2hvc, which is why the pin
+            # moved. The old two-file store is refused by this line, so a
+            # working install upgrading past it logs in once more.
+            api.client.dump(str(self.token_dir))
         self._api = api
         log.info("login succeeded; tokens written to %s", self.token_dir)
 
