@@ -136,11 +136,18 @@ logged.
 **No streaks.** `core/windows.py` is rolling-window only. A missed day dips a
 count; it never resets one. There is a test asserting exactly this.
 
-**Upgrading the Garmin library means logging in again.** `garminconnect` 0.3
-stores its tokens in one file, written owner-only (the fix for a published
-advisory), and refuses the two-file store older versions wrote. After moving
-across that line run `ledger garmin-login` once from a terminal, then rebuild
-the container.
+**The Garmin library is pinned to the 0.2 line, and moving it is a login.**
+0.3 replaced the OAuth1 session with a token minted by a password login, and
+Garmin's SSO has been answering that login with 401 for some accounts while
+the OAuth1 tokens 0.2 resumes from keep working. The pin stays at 0.2 until
+a 0.3 login succeeds here; `pyproject.toml` says what to do then. Whichever
+line is installed, crossing between them means `ledger garmin-login` once from
+a terminal, then a rebuild: the two token formats cannot be converted.
+
+**Passwords with `$` or quotes in `.env`** reach the container intact only
+because `docker-compose.yml` reads the file in raw mode. Without it compose
+interpolates `$name` and strips quotes, and Garmin answers 401 to a password
+that is right in the file.
 
 **Rate limiting is not optional.** Every Garmin call goes through
 `GarminClient.call()`, which paces to 2.5 s and backs off on 429/5xx. Garmin's

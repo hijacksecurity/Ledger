@@ -10,11 +10,17 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
-    # 0.3.5 fixed GHSA-wjhr-76vg-2hvc (token files written world-readable).
-    # The 0.3 line dropped garth: tokens live in one file under GARMINTOKENS
-    # and the old oauth1/oauth2 pair is refused, so moving a working install
-    # onto it means running `ledger garmin-login` once more, from a terminal.
-    "garminconnect>=0.3.5,<0.4",
+    # Pinned to the garth-based 0.2 line, on purpose. The 0.3 line replaced
+    # the OAuth1 session with a token minted by a password login, and that
+    # login is answered 401 "invalid username or password" by Garmin's SSO
+    # for this account while the OAuth1 tokens the 0.2 line resumes from keep
+    # working (see python-garminconnect issue #332). The cost is
+    # GHSA-wjhr-76vg-2hvc, token files written under the umask; here they sit
+    # on a Docker volume owned by the unprivileged app user, which is the
+    # same protection. `ledger/garmin/client.py` supports both lines, so the
+    # day a 0.3 login succeeds the pin moves back to ">=0.3.5,<0.4" and
+    # `ledger garmin-login` is run once.
+    "garminconnect>=0.2.25,<0.3",
     "jinja2>=3.1",
     "python-dotenv>=1.0",
 ]

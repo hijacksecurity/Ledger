@@ -36,7 +36,14 @@ x-common: &common
   build: .
   image: ledger:local
   restart: unless-stopped
-  env_file: [.env]
+  # `format: raw` hands every value to the container byte for byte. Without it
+  # compose interpolates `$name` and strips quotes inside the file, so a
+  # password containing either arrives mangled and Garmin answers 401 — which
+  # reads as a wrong password and burns login attempts. python-dotenv on the
+  # host already reads the file literally; this makes both sides agree.
+  env_file:
+    - path: .env
+      format: raw
   environment:
     LEDGER_DB_PATH: /data/ledger.db
     LEDGER_BACKUP_DIR: /backups
