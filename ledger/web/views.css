@@ -2557,37 +2557,38 @@ svg.plot text.reflabel { fill: var(--ink); font-size: 12px; font-weight: 700; le
 @media (min-width: 900px) { .rc-cards[data-n="6"] { grid-template-columns: repeat(3, 1fr); } }
 @media (min-width: 640px) { .rc-cards[data-n="7"] .rc-card[data-key="sleep_hours"] { grid-column: span 2; } }
 
+/* The card is the site's accent-panel chrome one step down: a flat tint of
+   the measure's hue with a matching hairline (`.panel.has-accent` says why
+   flat, never graded), the inner radius, and the stat tile's type scale for
+   the label and the number. The tone of the night never reaches the chrome:
+   it lives in the number, the reading and the meter. */
 .rc-card {
-  position: relative; overflow: hidden; min-width: 0;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px;
-  padding: .9rem 1rem .75rem; display: flex; flex-direction: column; gap: .6rem;
+  min-width: 0; display: flex; flex-direction: column; gap: .6rem;
+  padding: .9rem 1rem .75rem; border-radius: var(--r-sm);
+  border: 1px solid color-mix(in srgb, var(--rc-hue, var(--ink-3)) 26%, var(--line-2));
+  background: color-mix(in srgb, var(--rc-hue, var(--ink-3)) 4%, var(--surface));
 }
-/* A wash of the measure's own hue in the top corner, so the card reads as its
-   subject before a word of it is. The tone of the night never reaches the
-   chrome: it lives in the number, the reading and the meter. */
-.rc-card::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(120% 75% at 0% 0%, color-mix(in srgb, var(--rc-hue, var(--ink-3)) 14%, transparent), transparent 58%);
-}
-.rc-card > * { position: relative; }
 .rc-card-head { display: flex; align-items: center; gap: .55rem; min-width: 0; }
 .rc-ico {
-  width: 1.75rem; height: 1.75rem; border-radius: 9px; display: grid; place-items: center; flex: none;
+  width: 1.75rem; height: 1.75rem; border-radius: var(--r-xs); display: grid; place-items: center; flex: none;
   background: color-mix(in srgb, var(--rc-hue, var(--ink-3)) 16%, transparent); color: var(--rc-hue, var(--ink-2));
 }
 .rc-ico svg { width: 1rem; height: 1rem; }
-.rc-card-name { font-size: var(--t-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
-.rc-against { margin-left: auto; font-size: var(--t-xs); color: var(--ink-3); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Same rule as `.stat-label`. */
+.rc-card-name { font-size: var(--t-xs); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+.rc-against { margin-left: auto; font-size: var(--t-xs); color: var(--ink-3); text-align: right; white-space: nowrap; }
 .rc-card-now { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; margin-top: .1rem; }
-.rc-big-v { font-size: 2.35rem; font-weight: 800; letter-spacing: -.035em; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
-.rc-big-v u { text-decoration: none; font-size: 1rem; font-weight: 600; color: var(--ink-3); margin-left: .2rem; letter-spacing: 0; }
+/* Same rule as `.stat-value`, at the size a third-width card can hold.
+   Proportional figures: tabular belongs in columns, not display numbers. */
+.rc-big-v { font-size: 2.1rem; font-weight: 700; letter-spacing: -.035em; line-height: 1.05; color: var(--ink); font-variant-numeric: proportional-nums lining-nums; }
+.rc-big-v u { text-decoration: none; font-size: .5em; font-weight: 500; color: var(--ink-3); margin-left: .18em; letter-spacing: 0; }
 .rc-card.is-toned .rc-big-v { color: var(--tone-ink); }
 
 /* The reading: a dot in the tone with a soft halo, and the band's own word —
    no chip, no border. The small form sits in the rows under the number. */
 .rc-read {
   display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap;
-  font-size: .78rem; font-weight: 700; letter-spacing: .03em; color: var(--tone-ink, var(--ink-2));
+  font-size: var(--t-sm); font-weight: 600; color: var(--tone-ink, var(--ink-2));
 }
 .rc-read::before {
   content: ''; width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--tone, var(--ink-3));
@@ -2595,7 +2596,7 @@ svg.plot text.reflabel { fill: var(--ink); font-size: 12px; font-weight: 700; le
 }
 .rc-read.rc-read-none { color: var(--ink-2); font-weight: 600; }
 .rc-read.rc-read-none::before { background: transparent; border: 1.5px solid var(--ink-3); box-shadow: none; box-sizing: border-box; }
-.rc-read-sm { font-size: .7rem; gap: .3rem; }
+.rc-read-sm { font-size: var(--t-xs); gap: .3rem; }
 .rc-read-sm::before { width: 6px; height: 6px; box-shadow: none; }
 
 /* The meter: the scale itself, drawn as a track. Segments are the bands, lit
@@ -2611,7 +2612,7 @@ svg.plot text.reflabel { fill: var(--ink); font-size: 12px; font-weight: 700; le
 .rc-tick { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink); opacity: .75; }
 .rc-mark {
   position: absolute; top: 50%; width: 14px; height: 14px; margin-left: -7px; transform: translateY(-50%);
-  border-radius: 50%; background: var(--tone, var(--ink-2)); border: 2.5px solid var(--surface-2);
+  border-radius: 50%; background: var(--tone, var(--ink-2)); border: 2.5px solid var(--surface);
   box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--tone, var(--ink-3)) 60%, transparent), 0 1px 3px rgba(0, 0, 0, .25);
 }
 .rc-mark.tone-none { background: var(--ink-2); }
@@ -2638,11 +2639,11 @@ svg.plot text.reflabel { fill: var(--ink); font-size: 12px; font-weight: 700; le
   padding: .45rem 0; border-bottom: 1px solid var(--line);
 }
 .rc-card-rows > div:last-child { border-bottom: 0; padding-bottom: .15rem; }
-.rc-card-rows dt { font-size: var(--t-xs); color: var(--ink-3); letter-spacing: .02em; white-space: nowrap; }
+.rc-card-rows dt { font-size: var(--t-xs); color: var(--ink-3); white-space: nowrap; }
 .rc-card-rows dd { margin: 0; min-width: 0; display: flex; align-items: center; gap: .45rem; justify-content: flex-end; flex-wrap: wrap; }
-.rc-card-rows dd .rc-row-v { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.rc-card-rows dd .rc-row-v { font-size: var(--t-sm); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .rc-card-rows dd.is-toned .rc-row-v { color: var(--tone-ink); }
-.rc-card-rows dd .rc-n { color: var(--ink-3); font-size: .72rem; }
+.rc-card-rows dd .rc-n { color: var(--ink-3); font-size: var(--t-xs); }
 
 /* Reference labels on a figure get a halo so they stay legible over columns
    and inside a shaded band. */
