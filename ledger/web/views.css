@@ -1280,20 +1280,19 @@ span.daycell-fig.is-none {
 .lg-fx-ha { font-size: var(--t-xs); text-transform: uppercase; color: var(--ink-3); font-weight: 700; }
 .lg-fx-opp { min-width: 0; overflow-wrap: anywhere; }
 .lg-fx-time, .lg-fx-res { white-space: nowrap; }
-/* Your goals and assists for the game, from the log: a "you" key in front so
-   the figures read as yours, G and A spelled, never a bare pair of numbers. */
-.lg-fx-me {
-  display: inline-flex; align-items: baseline; gap: .2rem; white-space: nowrap;
-  padding: .1rem .45rem; border-radius: 999px; font-size: var(--t-xs); color: var(--ink-3);
-  border: 1px solid var(--line);
+/* Your marks on a game: a ball per goal, a ring per assist, the way a match
+   centre prints a scorer. Blank when you had neither. The key sits in the
+   list's header once, so the marks never need a label of their own. */
+.lg-fx-me { display: inline-flex; align-items: center; gap: .18rem; min-width: 1rem; }
+.lg-fx-me .num { font-size: var(--t-xs); font-weight: 700; color: var(--ink-2); margin-left: .05rem; }
+.lg-goal { width: .95rem; height: .95rem; color: var(--k-soccer); flex: none; }
+.lg-assist {
+  width: .72rem; height: .72rem; border-radius: 50%; box-sizing: border-box; flex: none;
+  border: 2px solid var(--k-soccer); opacity: .8;
 }
-.lg-fx-me-k { font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .6rem; margin-right: .15rem; }
-.lg-fx-me b { font-weight: 700; color: var(--ink-2); font-size: var(--t-sm); }
-.lg-fx-me-u { font-weight: 600; }
-.lg-fx-me-sep { color: var(--line-2); margin: 0 .1rem; }
-.lg-fx-me.has-some { color: var(--ink-2); border-color: color-mix(in srgb, var(--k-soccer) 45%, var(--line)); background: color-mix(in srgb, var(--k-soccer) 8%, transparent); }
-.lg-fx-me.has-some b { color: var(--ink); }
-.lg-fx-me.is-none { font-style: italic; }
+.lg-fx-head { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; }
+.lg-fx-key { display: inline-flex; align-items: center; gap: .3rem; font-size: var(--t-xs); color: var(--ink-3); text-transform: none; letter-spacing: 0; font-weight: 500; }
+.lg-fx-key .lg-assist { margin-left: .5rem; }
 @media (max-width: 640px) {
   .lg-fx { grid-template-columns: auto auto minmax(0, 1fr) auto; }
   .lg-fx-me { grid-column: 2 / -1; justify-self: start; }

@@ -613,7 +613,10 @@ export function mount(host, route, { setQuery }) {
 
   function fixtureList(lg) {
     const wrap = el('div', { class: 'lg-fixtures' });
-    wrap.append(el('div', { class: 'lbl', text: 'Your fixtures' }));
+    const any = lg.my_fixtures.some((f) => f.played && f.logged && ((f.logged.goals || 0) + (f.logged.assists || 0)));
+    wrap.append(el('div', { class: 'lbl lg-fx-head' }, [
+      el('span', { text: 'Your fixtures' }), any ? marksKey() : null,
+    ].filter(Boolean)));
     for (const f of lg.my_fixtures) {
       const home = f.home_game != null ? f.home_game : f.home === lg.my_team;
       const mine = home ? f.home_score : f.away_score;
@@ -630,7 +633,7 @@ export function mount(host, route, { setQuery }) {
             el('span', { class: 'num', text: mine == null ? '' : ` ${mine}–${theirs}` }),
           ])
           : el('span', { class: 'lg-fx-time num', text: f.time_text || '' }),
-        myLine(f),
+        myMarks(f),
         venueBadge(f.venue),
       ]));
     }
@@ -638,33 +641,34 @@ export function mount(host, route, { setQuery }) {
   }
 
   /**
-   * Your own line for a league game: goals and assists from the log, beside
-   * the team's result. Labelled "you" and spelled out on hover so a 2 · 1
-   * can never be read as a scoreline. A played game with nothing logged says
-   * so, in the same place, rather than showing a zero that was never entered.
+   * Your marks on a league game, the way a match centre prints a scorer: a
+   * ball per goal, a ring per assist, from the log. A game you had no part
+   * in is left blank — no zero, no chip — and the key above the list says
+   * what a ball and a ring are. Past four of either, one mark and the count.
    */
-  function myLine(f) {
-    if (!f.played) return el('span');
-    const lg = f.logged;
-    if (!lg) {
-      return el('span', { class: 'lg-fx-me is-none', title: 'Nothing logged for this game' }, [
-        el('span', { class: 'lg-fx-me-k', text: 'you' }),
-        el('span', { text: 'not logged' }),
-      ]);
-    }
-    const g = lg.goals || 0;
-    const a = lg.assists || 0;
+  function myMarks(f) {
+    const lg = f.played ? f.logged : null;
+    const g = lg ? (lg.goals || 0) : 0;
+    const a = lg ? (lg.assists || 0) : 0;
+    if (!g && !a) return el('span', { class: 'lg-fx-me' });
+    const marks = (n, make) => (n <= 4
+      ? Array.from({ length: n }, make)
+      : [make(), el('b', { class: 'num', text: `×${n}` })]);
     return el('span', {
-      class: `lg-fx-me${g || a ? ' has-some' : ''}`,
-      title: `You: ${g} goal${g === 1 ? '' : 's'}, ${a} assist${a === 1 ? '' : 's'}${lg.games > 1 ? ` across ${lg.games} logged games` : ''}`,
-      'aria-label': `You: ${g} goals, ${a} assists`,
+      class: 'lg-fx-me',
+      title: `You: ${g} goal${g === 1 ? '' : 's'}, ${a} assist${a === 1 ? '' : 's'}`,
+      role: 'img', 'aria-label': `You: ${g} goal${g === 1 ? '' : 's'}, ${a} assist${a === 1 ? '' : 's'}`,
     }, [
-      el('span', { class: 'lg-fx-me-k', text: 'you' }),
-      el('b', { class: 'num', text: String(g) }), el('span', { class: 'lg-fx-me-u', text: 'G' }),
-      el('span', { class: 'lg-fx-me-sep', text: '·' }),
-      el('b', { class: 'num', text: String(a) }), el('span', { class: 'lg-fx-me-u', text: 'A' }),
+      ...marks(g, () => icon('soccer', 'lg-goal')),
+      ...marks(a, () => el('i', { class: 'lg-assist' })),
     ]);
   }
+
+  /** "● goal  ○ assist" — once, above a list that has any. */
+  const marksKey = () => el('span', { class: 'lg-fx-key', 'aria-hidden': 'true' }, [
+    icon('soccer', 'lg-goal'), el('span', { text: 'your goal' }),
+    el('i', { class: 'lg-assist' }), el('span', { text: 'your assist' }),
+  ]);
 
   const FIXTURE_LABEL = { coed: 'Coed', mens: "Men's league", pickup: 'Pickup' };
   const FIXTURE_DAY = { coed: 'Mondays', mens: 'Thursdays', pickup: 'Tuesdays' };
