@@ -1,0 +1,64 @@
+# Secrets — never commit. See BRIEF §5, §11.
+.env
+.env.*
+!.env.example
+
+# Garmin OAuth tokens (garth). Contains live session credentials.
+.garth/
+garth_tokens/
+**/garminconnect/
+
+# Data
+*.db
+*.db-wal
+*.db-shm
+data/
+backups/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Notebook photos are large and personal; keep them local unless you
+# deliberately want them versioned.
+notebook/*
+!notebook/README.md
+
+# Tooling that is local to one machine, not to the project.
+# `.mcp.json` holds absolute paths into another checkout on this disk, so it is
+# actively wrong anywhere else. `settings.local.json` is per-machine by
+# definition; `.claude/settings.json`, if one is ever added, is shared and
+# stays tracked.
+.mcp.json
+.claude/settings.local.json
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+*.swp
+*~
+
+# Build / test artefacts
+build/
+dist/
+.coverage
+htmlcov/
+.mypy_cache/
+*.log
+
+# Merge and patch leftovers — never intentional in a commit.
+*.orig
+*.rej
+
+# Browser-automation output (Playwright MCP snapshots and screenshots) and
+# one-off screenshots dropped at the root while checking a page.
+.playwright-mcp/
+/*.png
+/*.yml

@@ -1,0 +1,57 @@
+[project]
+name = "ledger"
+version = "0.1.0"
+description = "Single-user training log: strength + Garmin endurance + unified load"
+requires-python = ">=3.11"
+
+# Dependency budget: 10 direct packages, hard ceiling (see BRIEF §3).
+# Currently 5. Every addition needs a reason that survives 'will this still
+# install in five years?'
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    # Pinned to the garth-based line on purpose. Newer releases replaced the
+    # oauth1/oauth2 token pair with a single garmin_tokens.json and a
+    # multi-strategy SSO login that Cloudflare blocks from a container. The
+    # 0.2.x flow resumes cleanly from tokens minted on the host and needs no
+    # password at all, which is exactly what BRIEF §5 asks for.
+    "garminconnect==0.2.25",
+    "jinja2>=3.1",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+    "httpx>=0.28",   # fastapi TestClient transport; not a runtime dependency
+]
+
+[project.scripts]
+ledger = "ledger.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ledger*"]
+
+[tool.setuptools.package-data]
+ledger = ["db/migrations/*.sql", "report/*.html", "web/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff.lint.per-file-ignores]
+"ledger/leagues.py" = ["RUF001"]  # scraped pages use en dashes in scores
+"ledger/report/timeframe.py" = ["RUF001"]  # en dashes are intentional in date ranges
+"tests/test_timeframe_alignment.py" = ["RUF001"]  # asserts those exact labels

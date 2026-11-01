@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ledger">
+  <!-- Maskable-safe: everything important sits inside the middle 80%. -->
+  <rect width="512" height="512" rx="112" fill="#111110"/>
+  <!-- Four bars in categorical slot order — soccer, run, bike, lift. The mark
+       is the unified-load chart, because that is what the app is for. -->
+  <g>
+    <rect x="118" y="286" width="58" height="130" rx="10" fill="#3987e5"/>
+    <rect x="196" y="222" width="58" height="194" rx="10" fill="#d95926"/>
+    <rect x="274" y="258" width="58" height="158" rx="10" fill="#199e70"/>
+    <rect x="352" y="150" width="58" height="266" rx="10" fill="#c98500"/>
+  </g>
+  <rect x="112" y="424" width="304" height="8" rx="4" fill="#898781"/>
+</svg>

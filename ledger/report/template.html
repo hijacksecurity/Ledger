@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ledger — week of {{ r.week_start }}</title>
+<style>
+  :root { color-scheme: light dark; --fg:#16181d; --muted:#6b7280; --line:#e3e5e9; --bg:#fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e8eaed; --muted:#9aa0a6; --line:#2a2d33; --bg:#16181d; }
+  }
+  body { background:var(--bg); color:var(--fg); margin:0; padding:2rem 1.25rem;
+         font:15px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  main { max-width:44rem; margin:0 auto; }
+  h1 { font-size:1.1rem; margin:0 0 .25rem; font-weight:600; }
+  h2 { font-size:.78rem; letter-spacing:.09em; text-transform:uppercase;
+       color:var(--muted); font-weight:600; margin:2rem 0 .6rem;
+       border-bottom:1px solid var(--line); padding-bottom:.35rem; }
+  .sub { color:var(--muted); margin:0 0 .5rem; }
+  .headline { font-size:1.9rem; font-variant-numeric:tabular-nums; margin:.9rem 0 0;
+              letter-spacing:-.02em; }
+  .headline span { font-size:.8rem; letter-spacing:0; display:block; }
+  table { border-collapse:collapse; width:100%; }
+  td { padding:.18rem .6rem .18rem 0; vertical-align:baseline; }
+  td.k { color:var(--muted); width:9rem; }
+  td.n { font-variant-numeric:tabular-nums; }
+  .empty { color:var(--muted); }
+  ul { margin:0; padding-left:1.1rem; }
+  li { margin:.15rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Ledger</h1>
+  <p class="sub">Week of {{ r.week_start }} to {{ r.week_end }}</p>
+
+  {# The paper log's boxed number, continued. See docs/NOTEBOOK.md. #}
+  {% if r.avg_per_week is not none %}
+  <p class="headline">{{ '%.2f'|format(r.avg_per_week) }}
+    <span class="empty">activities/week all-time · {{ r.total_activities }} logged</span></p>
+  {% endif %}
+
+  <h2>Sessions</h2>
+  {# for...else cannot help here: kind_order is never empty, only the counts #}
+  <table>
+    {% if not r.sessions_this_week and not r.sessions_28d %}
+      <tr><td class="empty">no sessions logged</td></tr>
+    {% endif %}
+    {% for kind in kind_order %}
+      {% if r.sessions_this_week.get(kind) or r.sessions_28d.get(kind) %}
+      <tr>
+        <td class="k">{{ kind }}</td>
+        <td class="n">{{ r.sessions_this_week.get(kind, 0) }} this week</td>
+        <td class="n">{{ r.sessions_28d.get(kind, 0) }} in trailing 28d</td>
+      </tr>
+      {% endif %}
+    {% endfor %}
+  </table>
+
+  <h2>Consistency — trailing 28 days</h2>
+  <table>
+    {% for kind, pair in r.consistency_28d.items() %}
+      <tr>
+        <td class="k">{{ kind }}</td>
+        {% if pair[1] %}
+          <td class="n">{{ pair[0] }} of {{ '%.0f'|format(pair[1]) }} planned</td>
+          <td class="n">{{ '%.0f'|format(100 * pair[0] / pair[1]) }}%</td>
+        {% else %}
+          <td class="n">{{ pair[0] }} completed</td><td class="empty">unplanned</td>
+        {% endif %}
+      </tr>
+    {% else %}
+      <tr><td class="empty">no plan configured</td></tr>
+    {% endfor %}
+  </table>
+
+  <h2>Load</h2>
+  <table>
+    <tr><td class="k">week total</td><td class="n">{{ '{:,.0f}'.format(r.week_load) }} AU</td></tr>
+    {% if r.acwr %}
+      <tr>
+        <td class="k">acute:chronic</td>
+        {% if r.acwr.available %}
+          <td class="n">{{ '%.2f'|format(r.acwr.ratio) }}</td><td class="empty">{{ r.acwr.band }}</td>
+        {% else %}
+          <td class="empty" colspan="2">building baseline
+            ({{ r.acwr.days_of_history }}/{{ min_days_for_acwr }} days)</td>
+        {% endif %}
+      </tr>
+    {% endif %}
+    {% if split %}
+      <tr>
+        <td class="k">split</td>
+        <td class="n" colspan="2">
+          {% for kind, frac in split.items() %}{{ kind }} {{ '%.0f'|format(100 * frac) }}%{% if not loop.last %} · {% endif %}{% endfor %}
+        </td>
+      </tr>
+    {% endif %}
+    {% if r.unscored_sessions %}
+      <tr><td class="empty" colspan="3">{{ r.unscored_sessions }} session(s) without RPE, excluded from the total</td></tr>
+    {% endif %}
+  </table>
+
+  {# An empty PR section is a normal week. Do not add filler copy here. #}
+  <h2>PRs this week</h2>
+  <ul>
+    {% for pr in r.prs %}
+      <li>{{ pr.exercise }} — {{ pr_label.get(pr.kind, pr.kind) }}: {{ pr_value(pr) }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>e1RM — top 5 by working sets, 4-week trend</h2>
+  <table>
+    {% for t in r.e1rm_trends %}
+      <tr>
+        <td class="k">{{ t.exercise }}</td>
+        <td class="n">{{ '%.0f'|format(t.current) }}kg</td>
+        <td class="n">{% if t.delta_4w is not none %}{{ '%+.1f'|format(t.delta_4w) }}kg over 4 weeks{% else %}<span class="empty">no comparison yet</span>{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td class="empty">no working sets in the last 28 days</td></tr>
+    {% endfor %}
+  </table>
+
+  <h2>Recovery — this week vs 28-day baseline</h2>
+  <table>
+    {% for key, pair in r.recovery.items() %}
+      {% if pair[0] is not none or pair[1] is not none %}
+      <tr>
+        <td class="k">{{ key.replace('_', ' ') }}</td>
+        <td class="n">{{ pair[0] if pair[0] is not none else '—' }}</td>
+        <td class="n">baseline {{ pair[1] if pair[1] is not none else '—' }}</td>
+      </tr>
+      {% endif %}
+    {% endfor %}
+  </table>
+
+  {# One line. No commentary, no direction judgement. BRIEF §7. #}
+  <h2>Bodyweight</h2>
+  <p>
+    {% if r.bodyweight_ema is none %}
+      <span class="empty">no readings</span>
+    {% else %}
+      {{ '%.1f'|format(r.bodyweight_ema) }}kg 7-day EMA{% if r.bodyweight_delta_4w is not none %}, {{ '%+.1f'|format(r.bodyweight_delta_4w) }}kg over 4 weeks{% endif %}
+    {% endif %}
+  </p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# Keep the build context small and free of secrets.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Secrets — passed at runtime via env_file, never baked into an image.
+.env
+.env.*
+!.env.example
+.garth/
+garth_tokens/
+
+# Data and backups live on volumes.
+data/
+backups/
+*.db
+*.db-wal
+*.db-shm
+
+# ~65 MB of photos; mounted read-only at runtime instead.
+notebook/*.jpg
+notebook/*.jpeg
+notebook/*.png
+
+.git/
+.github/
+docs/
+tests/

@@ -1,0 +1,23 @@
+# Normalise line endings. Authored on Windows, run in a Linux container, so
+# without this every file round-trips through CRLF and a clone elsewhere shows
+# the whole tree as modified.
+* text=auto eol=lf
+
+# Shell scripts execute inside the image. A CRLF here is not cosmetic: the
+# kernel reads `#!/bin/sh\r` as an interpreter that does not exist, and the
+# container dies with "no such file or directory" naming a file that is plainly
+# there.
+*.sh text eol=lf
+scripts/cron-entrypoint.sh text eol=lf
+
+# SQL migrations are append-only and hashed by the runner; keep them stable.
+*.sql text eol=lf
+
+# Binary — never diffed, never converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.db binary

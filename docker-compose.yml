@@ -1,0 +1,126 @@
+# Ledger — one app process plus a cron sidecar. Nothing else.
+#
+#   docker compose up -d              start
+#   docker compose run --rm cli ledger garmin-login    one-time interactive auth
+#   docker compose run --rm cli ledger report
+#
+# Ports bind to 127.0.0.1 by default. Expose to the tailnet by setting
+# LEDGER_BIND=0.0.0.0 in .env, or by running the container in the Tailscale
+# network namespace. Never publish this to the public internet — there is no
+# auth layer, by design (BRIEF §2, §11).
+#
+# ── Staying up across a reboot (Windows / Docker Desktop) ────────────────────
+# `restart: unless-stopped` below brings both containers back whenever the
+# Docker engine starts. That is only half of it: Docker Desktop itself has to
+# start, and it does not by default. Two settings in
+# %APPDATA%\Docker\settings-store.json, both set on this machine:
+#
+#   "AutoStart": true          launches Docker Desktop at sign-in; it also
+#                              writes HKCU\...\CurrentVersion\Run.
+#   "UseResourceSaver": false  Resource Saver parks the Linux VM after five
+#                              idle minutes, which for a server that is idle
+#                              most of the day means it is asleep most of the
+#                              day.
+#
+# Docker Desktop rewrites that file when it exits, so edit it with Docker
+# stopped (`docker desktop stop`) or the change is lost on the next quit.
+#
+# Known limitation: Docker Desktop needs a signed-in user session. After a
+# reboot with nobody logged in, nothing runs. If that ever matters, the app has
+# to move to Docker Engine under WSL, or off Docker onto a Windows service —
+# neither is worth doing until it does matter.
+
+name: ledger
+
+x-common: &common
+  build: .
+  image: ledger:local
+  restart: unless-stopped
+  env_file: [.env]
+  environment:
+    LEDGER_DB_PATH: /data/ledger.db
+    LEDGER_BACKUP_DIR: /backups
+    GARMINTOKENS: /tokens
+    TZ: ${TZ:-America/New_York}
+  volumes:
+    - ledger-data:/data
+    - ledger-backups:/backups
+    - garth-tokens:/tokens
+    # Notebook photos, read-only — reference material for transcription.
+    - ./notebook:/notebook:ro
+    # The PWA is served straight off disk, not from the image. Editing a file
+    # here shows up on the next refresh with no rebuild — the alternative is
+    # a 40-second image build to change one line of CSS.
+    - ./ledger/web:/app/ledger/web:ro
+
+services:
+  # One-shot, runs before everything else. The image runs as uid 10001, but
+  # volumes created by earlier root-run images still hold root-owned files;
+  # this hands them over (a no-op once they are already right) and exits.
+  volume-perms:
+    <<: *common
+    container_name: ledger-volume-perms
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["chown", "-R", "10001:10001", "/data", "/backups", "/tokens"]
+    healthcheck:
+      disable: true
+
+  app:
+    <<: *common
+    container_name: ledger-app
+    depends_on:
+      volume-perms:
+        condition: service_completed_successfully
+    ports:
+      - "${LEDGER_BIND:-127.0.0.1}:${LEDGER_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health',timeout=4).status==200 else 1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Nightly: sync the trailing 3 days, then back up. A plain sleep-until-the-hour
+  # loop, not cron — no extra binary, and logs go to stdout where
+  # `docker compose logs` can find them.
+  cron:
+    <<: *common
+    container_name: ledger-cron
+    depends_on:
+      volume-perms:
+        condition: service_completed_successfully
+      app:
+        condition: service_healthy
+    entrypoint: ["/app/scripts/cron-entrypoint.sh"]
+    # The image's HEALTHCHECK asks 127.0.0.1:8000 for /api/health. This
+    # container serves no HTTP, so inheriting it pinned the sidecar to
+    # "unhealthy" from the moment it started — which is worse than no check at
+    # all, because a genuine failure looks exactly like the steady state.
+    # Read the loop's heartbeat instead: stale for over a day means it stopped
+    # going round, whatever the process table says.
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/cron-heartbeat && [ $(( $(date +%s) - $(stat -c %Y /tmp/cron-heartbeat) )) -lt 93600 ]"]
+      interval: 5m
+      timeout: 5s
+      retries: 2
+      start_period: 30s
+
+  # One-shot CLI. Not started by `up`; use `docker compose run --rm cli ...`.
+  cli:
+    <<: *common
+    container_name: ledger-cli
+    profiles: ["cli"]
+    depends_on:
+      volume-perms:
+        condition: service_completed_successfully
+    restart: "no"
+    stdin_open: true
+    tty: true
+    entrypoint: []
+    command: ["ledger", "--help"]
+
+volumes:
+  ledger-data:
+  ledger-backups:
+  garth-tokens:

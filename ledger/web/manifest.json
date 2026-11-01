@@ -1,0 +1,31 @@
+{
+  "name": "Ledger — training record",
+  "short_name": "Ledger",
+  "description": "Soccer, running, biking, lifting, rucking and fasting on one comparable load scale.",
+  "start_url": "/#/week",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111110",
+  "theme_color": "#111110",
+  "orientation": "any",
+  "categories": ["health", "fitness", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Add an activity", "short_name": "Add", "url": "/#/add" },
+    { "name": "Session log", "short_name": "Log", "url": "/#/log" },
+    { "name": "Soccer", "short_name": "Soccer", "url": "/#/soccer" }
+  ]
+}
