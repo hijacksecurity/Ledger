@@ -277,7 +277,7 @@ export function mount(host, route, { setQuery }) {
       ]),
       el('div', { class: 'ss-right' }, [
         el('dl', { class: 'lg-rec' }, [
-          recCell('W', r.w), recCell('D', r.t), recCell('L', r.l), recCell('PTS', r.pts, true),
+          recCell('GP', r.gp), recCell('W', r.w), recCell('D', r.t), recCell('L', r.l), recCell('PTS', r.pts, true),
         ]),
         (x.results || []).length ? strip : null,
       ].filter(Boolean)),
@@ -433,7 +433,7 @@ export function mount(host, route, { setQuery }) {
         el('div', { class: 'lg-of', text: pos ? `of ${total} teams` : `${total} teams` }),
       ]),
       el('dl', { class: 'lg-rec' }, [
-        recCell('W', me.w), recCell('D', me.t), recCell('L', me.l),
+        recCell('GP', me.gp), recCell('W', me.w), recCell('D', me.t), recCell('L', me.l),
         recCell('PTS', me.pts, true),
       ]),
     ]));
