@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from ledger import leagues
@@ -965,9 +965,16 @@ def start_sync(background: BackgroundTasks, conn: DB, days: int = 3) -> dict[str
 
 
 @app.get("/api/report/weekly", response_class=HTMLResponse)
-def weekly_report(conn: DB, week_of: str | None = None) -> str:
+def weekly_report(
+    conn: DB, week_of: str | None = None, fmt: str = Query("html", alias="format")
+) -> Response:
+    """The weekly report. `format=text` is the same report `ledger report`
+    prints, for a reader that wants prose rather than markup."""
     end = date.fromisoformat(week_of) if week_of else None
-    return weekly.render_html(weekly.build_report(conn, end, cfg.planned_per_week))
+    rep = weekly.build_report(conn, end, cfg.planned_per_week)
+    if fmt == "text":
+        return PlainTextResponse(weekly.render_text(rep))
+    return HTMLResponse(weekly.render_html(rep))
 
 
 if (WEB_DIR / "index.html").exists():
