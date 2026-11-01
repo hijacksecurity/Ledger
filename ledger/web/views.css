@@ -416,6 +416,14 @@ svg.plot.is-anim .seg {
 .yearstat dt { font-size: var(--t-xs); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); }
 .yearstat dd { margin: 0; font-size: var(--t-sm); color: var(--ink-2); font-weight: 560; }
 .yearmix { margin-bottom: 1rem; }
+/* The year's nights, in a second grid under the activity grid. The head names
+   the measure, counts the nights and shows the ramp with its two ends. */
+.yearstats-nights { flex-basis: 100%; }
+.nightgrid:not(:empty) { margin-top: .9rem; }
+.nightgrid-head { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem 1rem; margin-bottom: .45rem; }
+.nightgrid-name { font-size: var(--t-xs); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); }
+.nightgrid-n { font-size: var(--t-xs); color: var(--ink-3); }
+.nightgrid-head .cal-scale { margin-left: auto; }
 .yearmix .splitbar { height: 26px; }
 .yearmix .splitkey { grid-template-columns: none; display: flex; flex-wrap: wrap; gap: .3rem 1.1rem; }
 .yearmix .splitkey li { display: inline-flex; }

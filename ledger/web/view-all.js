@@ -19,8 +19,10 @@ import {
 import { figure, splitBar, dayGrid, gridScale } from './charts.js';
 import {
   rolling28, normalizePoints, historyReadout, sessionsIn, lifetimeAveragePerWeek,
-  weeklyCounts, bodyweightByMonth, fastingByMonth, monthSpan, weightReadout,
+  weeklyCounts, bodyweightByMonth, fastingByMonth, monthSpan, weightReadout, metricByMonth, cached,
 } from './dataset.js';
+import { isNum, summarise, recoveryReadout } from './recovery.js';
+import { METRICS, metricOf } from './recovery-cards.js';
 
 /* A forced left pad, so the primary chart and the one beneath it share an
    x origin exactly. Alignment is what makes a small multiple readable. */
@@ -34,8 +36,11 @@ export function mount(host, route, { setQuery }) {
     avgRange: route.query.get('avg') || 'all',
     bwRange: route.query.get('bw') || 'all',
     unit: getWeightUnit(),
+    /* Which of the watch's nightly measures the long view shows. */
+    night: metricOf(route.query.get('night')) ? route.query.get('night') : 'sleep_hours',
   };
   let figs = [];
+  let nightFigs = [];
   let alive = true;
   let data = null;
 
@@ -50,6 +55,12 @@ export function mount(host, route, { setQuery }) {
     sub: 'activities in the trailing four weeks, every day on record — a dip, never a reset',
     wide: true,
   });
+  /* The nights, over the whole record. One measure at a time, picked in the
+     header, and the same pick colours a grid of every night under each year
+     below — the Recovery page reads a night; this is where a year of them
+     can be looked at side by side. Means per month, each with the nights it
+     rests on; no line is drawn through them. */
+  const pNights = panel({ title: 'Nights by month', sub: ' ', wide: true });
   const pRead = panel({ title: 'Read-out', sub: 'the whole record, stated plainly', wide: true });
   const pMixYear = panel({ title: 'Mix by year', sub: 'share of entries by modality' });
   const pShape = panel({ title: 'Shape of the record', sub: 'coverage and gaps' });
@@ -58,7 +69,7 @@ export function mount(host, route, { setQuery }) {
 
   host.append(
     subTabs('history', 'all'),
-    pAvg, pWeight, pFast, statsHost, pRoll, pRead,
+    pAvg, pWeight, pFast, statsHost, pRoll, pNights, pRead,
     el('div', { class: 'grid-2' }, [pMixYear, pShape]),
     pYears,
   );
@@ -67,6 +78,7 @@ export function mount(host, route, { setQuery }) {
   skeletonBlock(300, pFast.body);
   skeletonBlock(96, statsHost);
   skeletonBlock(220, pRoll.body);
+  skeletonBlock(240, pNights.body);
   skeletonBlock(140, pRead.body);
   skeletonBlock(200, pMixYear.body);
   skeletonBlock(200, pShape.body);
@@ -74,25 +86,33 @@ export function mount(host, route, { setQuery }) {
 
   (async () => {
     busy(true);
-    const res = await api('/api/history');
-    const sess = await sessionsIn({});
+    const [res, sess, met] = await Promise.all([
+      api('/api/history'),
+      sessionsIn({}),
+      cached('metrics:all', '/api/metrics?all=1'),
+    ]);
     busy(false);
     if (!alive) return;
     if (!res.ok) {
       clear(statsHost);
       panelError(pAvg.body, res, 'All-time history');
       panelError(pWeight.body, res, 'Bodyweight');
-      clear(pFast.body); clear(pRoll.body); clear(pRead.body);
+      clear(pFast.body); clear(pRoll.body); clear(pNights.body); clear(pRead.body);
       clear(pMixYear.body); clear(pShape.body); clear(pYears.body);
       return;
     }
-    data = { h: res.data, sessions: sess.ok ? sess.items : [] };
+    data = { h: res.data, sessions: sess.ok ? sess.items : [], nights: met.ok ? (met.data.days || []) : [] };
     paintAll();
   })();
 
   function dropFigs() {
     figs.forEach((f) => f.destroy && f.destroy());
     figs = [];
+    dropNightFigs();
+  }
+  function dropNightFigs() {
+    nightFigs.forEach((f) => f.destroy && f.destroy());
+    nightFigs = [];
   }
 
   function paintAll() {
@@ -105,6 +125,102 @@ export function mount(host, route, { setQuery }) {
     paintWeight();
     paintFasting();
     paintRest();
+    paintNights();
+  }
+
+  /* ══ the nights ════════════════════════════════════════════════════════ */
+
+  /* Every measure that has at least one reading on record. */
+  const nightMeasures = () => METRICS.filter((m) => (data.nights || []).some((r) => isNum(r[m.key])));
+  const nightFmt = (m) => (v) => `${Number(v).toFixed(m.digits)}${m.unit ? ` ${m.unit}` : ''}`;
+
+  /* Four steps across the measure's own record, by quartile, so a year's grid
+     is read against every other year's on the same scale — darker is more.
+     Magnitude only: this is not a reading on a scale, and carries no tone. */
+  function nightLevels(rows, key) {
+    const vals = rows.map((r) => r[key]).filter(isNum).map(Number).sort((a, b) => a - b);
+    if (!vals.length) return null;
+    const q = (p) => vals[Math.min(vals.length - 1, Math.floor(p * vals.length))];
+    const cuts = [q(0.25), q(0.5), q(0.75)];
+    return {
+      min: vals[0], max: vals[vals.length - 1],
+      level: (v) => (!isNum(v) ? 0 : 1 + cuts.filter((c) => Number(v) > c).length),
+    };
+  }
+
+  function paintNights() {
+    dropNightFigs();
+    const rows = data.nights || [];
+    const have = nightMeasures();
+    const m = have.find((x) => x.key === state.night) || have[0];
+    setTools(pNights, have.length ? segmented(
+      have.map((x) => [x.key, x.label]), m.key,
+      (v) => { state.night = v; setQuery({ night: v }); paintNights(); },
+      'Which nightly measure the long view shows',
+    ) : null);
+    clear(pNights.body);
+    if (!m) {
+      pNights.head.querySelector('.sub').textContent = ' ';
+      pNights.body.append(emptyNote('No nights on record yet — these arrive with the first Garmin sync.'));
+      paintYearNights(null);
+      return;
+    }
+    const months = metricByMonth(rows, m.key);
+    const nights = rows.filter((r) => isNum(r[m.key]));
+    pNights.head.querySelector('.sub').textContent =
+      `${m.label.toLowerCase()}, mean per calendar month over ${fmt.int(nights.length)} nights since ${fmt.dateY(nights[0].date)} — a month's mean on each column, the nights behind it in the table; a month with no night is left out, never drawn as zero`;
+    const color = m.hue === 'ink-2' ? token('ink-2') : token(m.hue);
+    nightFigs.push(figure(pNights.body, {
+      type: 'columns',
+      aria: `${m.label}, mean per month, every month with a night on record`,
+      height: 240, unit: m.unit, periodLabel: 'Month', minSlot: 36,
+      series: [{ key: 'v', label: m.label, color }],
+      points: months.map((x) => ({
+        key: x.key, label: fmt.monthYear(x.key), values: { v: Number(x.mean.toFixed(m.digits)) },
+        note: `${x.n} night${x.n === 1 ? '' : 's'}`,
+      })),
+      format: nightFmt(m),
+      formatShort: (v) => Number(v).toFixed(m.digits),
+    }));
+    paintYearNights(m);
+  }
+
+  /* The grid of nights under each year block, for the picked measure. Drawn
+     here rather than in `yearBlock` so a change of measure redraws the grids
+     and nothing else. */
+  function paintYearNights(m) {
+    const rows = data.nights || [];
+    const lv = m ? nightLevels(rows, m.key) : null;
+    for (const host of pYears.querySelectorAll('.nightgrid')) {
+      clear(host);
+      if (!m || !lv) continue;
+      const year = host.dataset.year;
+      const byDate = new Map(rows.filter((r) => r.date.startsWith(year) && isNum(r[m.key])).map((r) => [r.date, r]));
+      if (!byDate.size) continue;
+      const hue = m.hue === 'ink-2' ? token('ink-2') : token(m.hue);
+      const f = nightFmt(m);
+      host.append(el('div', { class: 'nightgrid-head' }, [
+        el('span', { class: 'nightgrid-name', text: `${m.label}, by night` }),
+        el('span', { class: 'nightgrid-n', text: `${fmt.int(byDate.size)} night${byDate.size === 1 ? '' : 's'}` }),
+        gridScale({ lo: f(lv.min), hi: f(lv.max), hue }),
+      ]));
+      const grid = el('div');
+      dayGrid(grid, {
+        start: data.h.start, counts: [], year,
+        from: host.dataset.from, to: host.dataset.to, today: data.h.today, hue, what: m.label,
+        cell: (iso) => {
+          const r = byDate.get(iso);
+          const v = r ? r[m.key] : null;
+          return {
+            level: lv.level(v),
+            rows: [[m.label, v == null ? '—' : f(v)]],
+            note: v == null ? 'no reading' : null,
+            aria: v == null ? 'no reading' : `${m.label} ${f(v)}`,
+          };
+        },
+      });
+      host.append(grid);
+    }
   }
 
   /* ══ flagship 1 — the boxed number ═════════════════════════════════════ */
@@ -389,6 +505,7 @@ export function mount(host, route, { setQuery }) {
       { label: 'Distance', value: fmt.int(sum('distance_km')), unit: 'km',
         note: 'every kilometre logged, all modalities' },
       { label: 'Load', value: fmt.compact(sum('load')), unit: 'AU', note: 'training load, all modalities' },
+      ...(nightsOnRecord(data.nights) ? [nightsOnRecord(data.nights)] : []),
     ]));
 
     clear(pRoll.body);
@@ -409,7 +526,10 @@ export function mount(host, route, { setQuery }) {
     }
 
     clear(pRead.body);
-    pRead.body.append(readout(historyReadout(h, sessions)));
+    pRead.body.append(readout([
+      ...historyReadout(h, sessions),
+      ...recoveryReadout(data.nights || [], { fmtDate: fmt.dateY }),
+    ]));
 
     clear(pMixYear.body);
     const yearKinds = orderKinds(KINDS.filter((k) => years.some((y) => (y.by_kind || {})[k] > 0)));
@@ -455,6 +575,26 @@ export function mount(host, route, { setQuery }) {
     else for (const y of years) pYears.body.append(yearBlock(h, y));
   }
 
+  /** The nights tile for the strip, or null before the first sync. */
+  function nightsOnRecord(rows) {
+    const nights = (rows || []).filter((r) => isNum(r.sleep_hours) || isNum(r.resting_hr));
+    if (!nights.length) return null;
+    return { label: 'Nights', value: fmt.int(nights.length), note: `since ${fmt.dateY(nights[0].date)}, from the watch` };
+  }
+
+  /** A year's nights, as stats for its head: mean and count per measure. */
+  function yearNightStats(year) {
+    const rows = (data.nights || []).filter((r) => r.date.startsWith(year));
+    const out = [];
+    for (const key of ['sleep_hours', 'hrv_ms', 'resting_hr', 'readiness']) {
+      const s = summarise(rows, key);
+      if (!s.n) continue;
+      const m = metricOf(key);
+      out.push([m.label, `${nightFmt(m)(s.value)} ·${s.n}`]);
+    }
+    return out;
+  }
+
   function yearBlock(h, y) {
     const byKind = y.by_kind || {};
     const parts = orderKinds(Object.keys(byKind)).filter((k) => byKind[k] > 0)
@@ -476,6 +616,12 @@ export function mount(host, route, { setQuery }) {
     const stat = (label, value) => el('div', { class: 'yearstat' }, [
       el('dt', { text: label }), el('dd', { class: 'num', text: value }),
     ]);
+    const nightStats = yearNightStats(y.year);
+    const nightHost = el('div', {
+      class: 'nightgrid', 'data-year': y.year,
+      'data-from': yearStart < h.start ? h.start : yearStart,
+      'data-to': yearEnd > h.end ? h.end : yearEnd,
+    });
 
     return el('div', { class: 'yearblock' }, [
       el('div', { class: 'yearhead' }, [
@@ -488,9 +634,11 @@ export function mount(host, route, { setQuery }) {
           stat('Load', `${fmt.compact(y.load)} AU`),
           stat('Span', `${fmt.date(y.first)} – ${fmt.date(y.last)}`),
         ]),
-      ]),
+        nightStats.length ? el('dl', { class: 'yearstats yearstats-nights' }, nightStats.map(([k, v]) => stat(k, v))) : null,
+      ].filter(Boolean)),
       mix,
       gridHost,
+      nightHost,
     ]);
   }
 

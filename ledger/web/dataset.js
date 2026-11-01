@@ -422,6 +422,23 @@ export function bodyweightByMonth(series) {
   return [...bucket.entries()].sort().map(([key, b]) => ({ key, kg: b.sum / b.n, n: b.n }));
 }
 
+/** A nightly measure's mean per calendar month, with the nights it rests on.
+ *  Months with no reading are absent, not zero: a month of no nights is a gap,
+ *  and a zero would plot as the worst month on record. */
+export function metricByMonth(rows, key) {
+  const bucket = new Map();
+  for (const r of rows || []) {
+    const v = r[key];
+    if (v == null || !Number.isFinite(Number(v))) continue;
+    const k = r.date.slice(0, 7);
+    if (!bucket.has(k)) bucket.set(k, { sum: 0, n: 0 });
+    const b = bucket.get(k);
+    b.sum += Number(v);
+    b.n += 1;
+  }
+  return [...bucket.entries()].sort().map(([k, b]) => ({ key: k, mean: b.sum / b.n, n: b.n }));
+}
+
 /** Fasting hours per month, zero-filled across the same months. */
 export function fastingByMonth(fasts, months) {
   const bucket = new Map();

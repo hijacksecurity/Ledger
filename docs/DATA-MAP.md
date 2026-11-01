@@ -140,6 +140,8 @@ dated D is the night that **ended** on the morning of D.
 | The morning after, The day after | `#/recovery` | Row D+1 grouped by what day D was; sessions on D paired with row D, split on `sleep_need_min` and the HRV range |
 | Read-out, Every night | `#/recovery` | The table prints every row the charts drew, with Garmin's need and range per night |
 | Recovery (six cards: sleep, sleep score, HRV, resting HR, readiness, body battery at wake) | `#/week` | `measureCards()` in `recovery-cards.js` — the **same builder and rows** as *Last night, and the longer term* on `#/recovery`; last night large, then the week on screen ("This week" or "Week of …") and the last 28 nights, each tagged on its scale and drawn on a meter of that scale (invariant 17) |
+| Nights by month | `#/all` | `metricByMonth()` in `dataset.js`: mean per calendar month for the picked measure, the nights counted on every column; months with no night absent, never zero |
+| Nights grid under each year, Nights tile, year head (Sleep / HRV / Resting HR / Readiness mean ·n), recovery lines in the Read-out | `#/all` | Every night of the year as a cell on a four-step ramp cut at the measure's own quartiles over the whole record — magnitude, never a reading, so no tone; the year head and the read-out are `summarise()` / `recoveryReadout()` from `recovery.js` |
 | Week footnote (HRV, RHR, readiness, sleep: week vs 28-day) | `#/week` | Server-side `_recovery()` in `report/weekly.py` — equals the *This week* / *Last 28 nights* columns (invariant 16) |
 | Sleep habit | `#/habits`, `#/week`, `#/calendar` | Reads `sleep_hours` against `habit.target` |
 
@@ -364,7 +366,7 @@ Counts from `scripts/inventory.py`; run it after adding a panel.
 | `#/running` | 10 | 7 | 5 | 3 |
 | `#/lifting` | 7 | 3 | 2 | 1 |
 | `#/trends` | 6 | 4 | 0 | 1 |
-| `#/all` | 8 | 7 | 0 | 4 |
+| `#/all` | 9 | 8 | 0 | 4 |
 | `#/log` | 1 | 0 | 0 | 0 |
 | `#/sync` | 6 | 0 | 2 | 2 |
 
@@ -382,6 +384,7 @@ nobody indexed is a panel nobody will think to re-check when its data changes.
 - Bodyweight
 - Bodyweight and fasting
 - Rolling 28-day count
+- Nights by month
 - Read-out
 - Mix by year
 - Shape of the record

@@ -974,9 +974,16 @@ export function sparkline(host, values, { color, height = 44, label = '' } = {})
  * A Mon–Sun column grid for one calendar year. Magnitude, so: one hue,
  * light → dark, with a scale legend rendered by the caller.
  */
-export function dayGrid(host, { start, counts, year, from, to, today }) {
+/**
+ * One cell per day. By default a day is its activity count from `counts`
+ * (indexed from `start`), on four steps. Pass `cell(iso)` to colour the grid
+ * by something else — a night's sleep, say — returning
+ * `{ level: 0–4, rows: [[label, value]], note, aria }`; `hue` recolours the
+ * sequential ramp for that grid alone.
+ */
+export function dayGrid(host, { start, counts, year, from, to, today, cell = null, hue = null, what = 'Activity' }) {
   clear(host);
-  const wrap = el('div', { class: 'cal-wrap scroll' });
+  const wrap = el('div', { class: 'cal-wrap scroll', style: hue ? `--seq:${hue}` : null });
   const scroller = el('div', { class: 'cal-scroll' });
   /* A Mon/Wed/Fri rail down the left, because which weekday a mark sits on is
      the whole story on a page about fixtures. */
@@ -984,7 +991,7 @@ export function dayGrid(host, { start, counts, year, from, to, today }) {
   for (const d of ['Mon', '', 'Wed', '', 'Fri', '', 'Sun']) rail.append(el('div', { text: d }));
   const months = el('div', { class: 'cal-months' });
   const cal = el('div', { class: 'cal', role: 'img',
-    'aria-label': `Activity calendar for ${year}` });
+    'aria-label': `${what} calendar for ${year}` });
 
   const startD = new Date(`${start}T00:00:00`);
   const fromD = new Date(`${from}T00:00:00`);
@@ -1000,19 +1007,21 @@ export function dayGrid(host, { start, counts, year, from, to, today }) {
     const iso = `${day.getFullYear()}-${p2(day.getMonth() + 1)}-${p2(day.getDate())}`;
     const idx = Math.round((day - startD) / 86400000);
     const n = counts[idx] ?? 0;
-    const level = n === 0 ? 0 : Math.min(4, n);
+    const own = cell ? cell(iso) : null;
+    const level = own ? own.level : (n === 0 ? 0 : Math.min(4, n));
+    const has = own ? own.level > 0 : n > 0;
 
-    const cell = el('div', {
-      class: 'cal-day', 'data-n': level, tabindex: n ? '0' : null,
-      role: n ? 'img' : null,
-      'aria-label': n ? `${iso}, ${n} ${n === 1 ? 'activity' : 'activities'}` : null,
+    const node = el('div', {
+      class: 'cal-day', 'data-n': level, tabindex: has ? '0' : null,
+      role: has ? 'img' : null,
+      'aria-label': has ? (own ? `${iso}, ${own.aria}` : `${iso}, ${n} ${n === 1 ? 'activity' : 'activities'}`) : null,
     });
-    attachTip(cell, () => ({
+    attachTip(node, () => ({
       title: `${fmt.weekday(iso)}, ${fmt.dateY(iso)}`,
-      rows: [['Activities', n]],
-      note: n ? null : (iso > today ? 'ahead of today' : 'nothing logged'),
+      rows: own ? own.rows : [['Activities', n]],
+      note: own ? own.note : (n ? null : (iso > today ? 'ahead of today' : 'nothing logged')),
     }));
-    cal.append(cell);
+    cal.append(node);
 
     if ((i + pad) % 7 === 0) {
       const m = iso.slice(0, 7);
@@ -1026,9 +1035,9 @@ export function dayGrid(host, { start, counts, year, from, to, today }) {
   host.append(wrap);
 }
 
-export function gridScale() {
-  const scale = el('div', { class: 'cal-scale' }, [el('span', { text: 'none' })]);
+export function gridScale({ lo = 'none', hi = '4+ a day', hue = null } = {}) {
+  const scale = el('div', { class: 'cal-scale', style: hue ? `--seq:${hue}` : null }, [el('span', { text: lo })]);
   for (const n of [0, 1, 2, 3, 4]) scale.append(el('i', { 'data-n': n }));
-  scale.append(el('span', { text: '4+ a day' }));
+  scale.append(el('span', { text: hi }));
   return scale;
 }
