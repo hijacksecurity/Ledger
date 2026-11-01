@@ -29,6 +29,12 @@ import { METRICS, metricOf } from './recovery-cards.js';
 const PAD_L = 48;
 const PAD_R = 14;
 
+/* Date-keyed points get their year as the axis group, so a span of more than
+   one year names each year where it begins (see `charts.js`). */
+const byYear = (points) => points.map((p) => (
+  /^\d{4}-/.test(String(p.key)) ? { ...p, group: String(p.key).slice(0, 4) } : p
+));
+
 const AVG_RANGES = [['all', 'All time'], ['104', '2 years'], ['52', '52 weeks'], ['26', '26 weeks']];
 
 export function mount(host, route, { setQuery }) {
@@ -304,7 +310,7 @@ export function mount(host, route, { setQuery }) {
       padLeft: PAD_L, padRight: PAD_R,
       annotate: 'extremes',
       series: [{ key: 'avg', label: 'Lifetime average', color: colorOf('soccer') }],
-      points: avg,
+      points: byYear(avg),
       format: (v) => v.toFixed(2),
       formatShort: (v) => v.toFixed(1),
     }));
@@ -320,7 +326,7 @@ export function mount(host, route, { setQuery }) {
       height: 130, unit: 'activities', periodLabel: 'Week of',
       padLeft: PAD_L, padRight: PAD_R, minSlot: 1,
       series: [{ key: 'n', label: 'Activities', color: stepTowardInk(colorOf('soccer'), 0.42) }],
-      points: weeks,
+      points: byYear(weeks),
       format: (v) => fmt.int(v),
       formatShort: (v) => fmt.int(v),
       labels: 'none',
@@ -358,7 +364,6 @@ export function mount(host, route, { setQuery }) {
 
     const u = state.unit;
     const conv = (kg) => inUnit(kg, u);
-    const emaOf = (p) => p.ema ?? p.kg;
     const last = bw[bw.length - 1];
 
     setTools(pWeight, [
@@ -372,7 +377,7 @@ export function mount(host, route, { setQuery }) {
     setTimeframe(pWeight, state.bwRange === 'all' ? data.h.timeframe
       : `${state.bwRange} weeks to ${fmt.dateY(last.date)}`);
     pWeight.head.querySelector('.sub').textContent =
-      `Every weigh-in you logged or synced, with a seven-day trend line behind them. `
+      `Every weigh-in you logged or synced, as it was read. `
       + `${bw.length} weigh-ins, ${fmt.dateY(bw[0].date)} to ${fmt.dateY(last.date)}. Stored and plotted, never scored.`;
 
     const deltaTile = (label, weeks) => {
@@ -403,21 +408,19 @@ export function mount(host, route, { setQuery }) {
     pWeight.body.append(main);
     figs.push(figure(main, {
       type: 'line',
-      aria: `Bodyweight readings in ${u === 'kg' ? 'kilograms' : 'pounds'}, with a seven-day trend line behind them`,
+      aria: `Bodyweight readings in ${u === 'kg' ? 'kilograms' : 'pounds'}, every weigh-in on record`,
       height: 300, unit: u, periodLabel: 'Date',
       padLeft: PAD_L, padRight: PAD_R,
       annotate: 'extremes',
-      /* Readings lead. The EMA stays as a background guide — 97 weigh-ins
-         swinging seven pounds inside a fortnight genuinely need a trend line
-         to read a direction off — but it is behind the data now, not in front
-         of it, and it is never called "your weight". */
-      series: [
-        { key: 'raw', label: 'Weigh-in', color: token('ink-2') },
-        { key: 'ema', label: '7-day trend', color: token('ink-3'), dashed: true },
-      ],
+      /* The readings, and only the readings. A seven-day trend used to run
+         behind them; it was the last smoothed line on the site and the user
+         asked for it to go — what the scale said is the number, and a line
+         the scale never produced beside it reads as a second opinion. The
+         server still publishes `ema`; nothing draws it. */
+      series: [{ key: 'raw', label: 'Weigh-in', color: token('ink-2') }],
       points: bw.map((p) => ({
-        key: p.date, label: fmt.date(p.date),
-        values: { ema: conv(emaOf(p)), raw: conv(p.kg) },
+        key: p.date, label: fmt.date(p.date), group: p.date.slice(0, 4),
+        values: { raw: conv(p.kg) },
         note: `${inUnit(p.kg, u === 'kg' ? 'lb' : 'kg').toFixed(1)} ${u === 'kg' ? 'lb' : 'kg'}`,
       })),
       format: (v) => `${v.toFixed(1)}`,
@@ -519,7 +522,7 @@ export function mount(host, route, { setQuery }) {
         height: 220, unit: 'activities', periodLabel: 'Day', zeroBase: true,
         annotate: 'extremes',
         series: [{ key: 'n', label: 'Trailing 28 days', color: colorOf('soccer') }],
-        points: roll,
+        points: byYear(roll),
         format: (v) => fmt.int(v),
         formatShort: (v) => fmt.int(v),
       }));

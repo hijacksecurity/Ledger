@@ -34,8 +34,21 @@ import {
  *
  *   spec.bands  = [{ from, to, color, label }]     from/to in data units
  *   spec.guides = [{ value, color, label, dashed }]
+ *
+ * A point may carry `group` — the year of a date-keyed series. When the
+ * points span more than one group the axis gets a second row that names each
+ * group where it begins, so "Oct 4" on a chart three years long is never read
+ * as the wrong year. `spec.groups = false` turns the row off.
  */
 const refLabelWidth = (text) => Math.round(text.length * 6.9) + 14;
+
+/** Indexes at which a new group starts, or [] when the points carry none. */
+const groupStarts = (points, spec) => (spec.groups === false ? [] : points.reduce((acc, p, i) => {
+  if (p.group != null && (i === 0 || p.group !== points[i - 1].group)) acc.push(i);
+  return acc;
+}, []));
+/** Height of the group row under the ticks. */
+const GROUP_ROW = 14;
 
 /* A plot narrower than this gets each mark's short label ("41–67") instead
    of the full one ("balanced 41–67 ms"); the legend still carries the full
@@ -372,7 +385,9 @@ function drawColumns(spec, width, format, formatShort) {
   const padL = spec.padLeft || Math.max(30, 10 + Math.max(...tickTexts.map((t) => t.length)) * 6.4);
   const padR = Math.max(spec.padRight || 10, refGutter(spec, width));
   const padT = 20;
-  const padB = spec.hideAxis ? 10 : 26;
+  const starts = groupStarts(points, spec);
+  const hasGroups = !spec.hideAxis && starts.length > 1;
+  const padB = spec.hideAxis ? 10 : 26 + (hasGroups ? GROUP_ROW : 0);
 
   const minSlot = spec.minSlot || 11;
   let plotW = Math.max(60, width - padL - padR);
@@ -524,7 +539,14 @@ function drawColumns(spec, width, format, formatShort) {
 
     if (!spec.hideAxis && (i % labelEvery === 0 || i === lastIdx)) {
       g.append(el('text', {
-        class: 'tick', x: x + barW / 2, y: height - 9, 'text-anchor': 'middle', text: p.label,
+        class: 'tick', x: x + barW / 2, y: height - 9 - (hasGroups ? GROUP_ROW : 0),
+        'text-anchor': 'middle', text: p.label,
+      }));
+    }
+    if (hasGroups && starts.includes(i)) {
+      g.append(el('line', { class: 'grid-group', x1: x, x2: x, y1: height - 9 - GROUP_ROW - 8, y2: height - 4 }));
+      g.append(el('text', {
+        class: 'tick tick-group', x: x + 4, y: height - 5, 'text-anchor': 'start', text: String(p.group),
       }));
     }
 
@@ -590,7 +612,9 @@ function drawLine(spec, width, format, formatShort, live) {
   const padL = spec.padLeft || Math.max(30, 10 + Math.max(...tickTexts.map((t) => t.length)) * 6.4);
   const padR = Math.max(spec.padRight || 12, refGutter(spec, width));
   const padT = 16;
-  const padB = spec.hideAxis ? 8 : 24;
+  const starts = groupStarts(points, spec);
+  const hasGroups = !spec.hideAxis && starts.length > 1;
+  const padB = spec.hideAxis ? 8 : 24 + (hasGroups ? GROUP_ROW : 0);
   const height = spec.height || 220;
   const plotW = Math.max(60, width - padL - padR);
   const plotH = height - padT - padB;
@@ -618,10 +642,22 @@ function drawLine(spec, width, format, formatShort, live) {
          "Oct 19" on top of each other and the axis read "Oct 2 9". */
       if (i !== n - 1 && n - 1 - i < labelEvery) return;
       svg.append(el('text', {
-        class: 'tick', x: x(i), y: height - 8,
+        class: 'tick', x: x(i), y: height - 8 - (hasGroups ? GROUP_ROW : 0),
         'text-anchor': i === n - 1 ? 'end' : 'middle', text: p.label,
       }));
     });
+    /* The group row: a short rule where each group begins, and its name. */
+    if (hasGroups) {
+      for (const i of starts) {
+        svg.append(el('line', {
+          class: 'grid-group', x1: x(i), x2: x(i), y1: padT + plotH, y2: height - 4,
+        }));
+        svg.append(el('text', {
+          class: 'tick tick-group', x: x(i) + 4, y: height - 5, 'text-anchor': 'start',
+          text: String(points[i].group),
+        }));
+      }
+    }
   }
 
   /* A named break in the x axis — "today", where the record stops and the

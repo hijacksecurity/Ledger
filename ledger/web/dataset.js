@@ -411,7 +411,7 @@ export function weeklyCounts(history) {
 export function bodyweightByMonth(series) {
   const bucket = new Map();
   for (const p of series || []) {
-    const kg = p.ema ?? p.kg;
+    const kg = p.kg;  // the reading, never the server's EMA
     if (kg == null) continue;
     const key = p.date.slice(0, 7);
     if (!bucket.has(key)) bucket.set(key, { sum: 0, n: 0 });
@@ -486,10 +486,8 @@ export function weightReadout(series, fasts, { unit = 'lb', convert = (kg) => kg
   const u = (kg, dp = 1) => `${convert(kg).toFixed(dp)} ${unit}`;
   const first = pts[0];
   const last = pts[pts.length - 1];
-  const emaOf = (p) => p.ema ?? p.kg;
-
   out.push(`${pts.length} weigh-ins between ${fmt.dateY(first.date)} and ${fmt.dateY(last.date)}.`);
-  out.push(`Latest EMA ${u(emaOf(last))}, against ${u(emaOf(first))} at the first entry.`);
+  out.push(`Latest weigh-in ${u(last.kg)}, against ${u(first.kg)} at the first entry.`);
 
   const kgs = pts.map((p) => p.kg);
   const hi = pts[kgs.indexOf(Math.max(...kgs))];
@@ -500,8 +498,8 @@ export function weightReadout(series, fasts, { unit = 'lb', convert = (kg) => kg
     const cutoff = addDays(last.date, -7 * weeks);
     const prior = pts.filter((p) => p.date <= cutoff).pop();
     if (!prior) continue;
-    const delta = emaOf(last) - emaOf(prior);
-    out.push(`Over ${label}: ${fmt.signed(convert(Math.abs(delta)) * Math.sign(delta) || 0, ` ${unit}`)}, from ${u(emaOf(prior))} on ${fmt.dateY(prior.date)}.`);
+    const delta = last.kg - prior.kg;
+    out.push(`Over ${label}: ${fmt.signed(convert(Math.abs(delta)) * Math.sign(delta) || 0, ` ${unit}`)}, from ${u(prior.kg)} on ${fmt.dateY(prior.date)}.`);
   }
 
   const withHours = (fasts || []).filter((f) => (f.detail || {}).hours);

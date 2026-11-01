@@ -168,8 +168,9 @@ that was never fetched, not one that failed last night.
 | Weight insights | `#/insights` |
 
 **Trap:** the server publishes an EMA and an EMA-to-EMA delta. Display uses
-**readings** (`series[].kg`) throughout. Mixing the two makes two screens
-disagree by ~2 lb.
+**readings** (`series[].kg`) throughout — since 2026-11-01 nothing draws the
+EMA at all; the chart's seven-day trend line was the last use and was removed
+at the user's request. Mixing the two makes two screens disagree by ~2 lb.
 
 ### `load` / `load_source` / `foster_au`
 | Surface | Where |
