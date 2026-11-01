@@ -559,6 +559,7 @@ Things that must agree. Each one is here because it once did not.
 | 14 | The Habits pillar on `#/week` == the Habits pillar on `#/score`, same week |
 | 15 | A habit's rate == its own `totals.met`/`totals.scored`; no surface recomputes either |
 | 16 | Recovery: the `#/week` footnote (week mean vs 28-day mean of HRV, resting HR, readiness, sleep) == the *This week* and *Last 28 nights* columns on `#/recovery` — verified equal on 2026-10-31; both are plain means over `metric_daily` with the same Monday and the same trailing window |
+| 18 | Two activity totals on `#/all` are two quantities and are labelled as such: "In the average" is `history.average.activities` (through the last completed Sunday, what the lifetime average divides) and "Activities" is `history.total` (everything on record, the week in progress included); each tile names the gap between them |
 | 17 | The six Recovery cards on `#/week` == the same six cards on `#/recovery` (last night, the week, the 28 nights, and every tag): one builder, `measureCards()` in `recovery-cards.js`, fed the same `/api/metrics` rows; neither page computes a reading itself |
 
 ## Verifying

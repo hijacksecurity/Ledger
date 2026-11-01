@@ -294,9 +294,10 @@ export function mount(host, route, { setQuery }) {
            tile read "396 activities over 87 weeks" — 4.55 — directly beside a
            Now tile reading 4.42. Two figures for one quantity, one card
            apart, which is this codebase's oldest failure. */
-        label: 'Total activities', value: fmt.int(lifetime.activities ?? h.total),
+        label: 'In the average', value: fmt.int(lifetime.activities ?? h.total),
         note: lifetime.weeks
-          ? `through ${fmt.dateY(lifetime.through)} — what the average divides by ${fmt.int(lifetime.weeks)} weeks`
+          ? `activities through ${fmt.dateY(lifetime.through)}, the last completed week`
+            + (h.total > lifetime.activities ? ` — ${fmt.int(h.total - lifetime.activities)} this week join when it closes` : '')
           : `over ${h.weeks} weeks`,
       },
     ]));
@@ -546,7 +547,14 @@ export function mount(host, route, { setQuery }) {
 
     clear(statsHost);
     statsHost.append(statStrip([
-      { label: 'Activities', value: fmt.int(h.total), note: h.start ? `since ${fmt.dateY(h.start)}` : '' },
+      /* Everything on record, the week in progress included — which is why it
+         can read a few higher than the average's own count above: that one
+         stops at the last completed Sunday, and says so. */
+      { label: 'Activities', value: fmt.int(h.total),
+        note: h.start
+          ? `since ${fmt.dateY(h.start)}`
+            + (h.average && h.total > h.average.activities ? ` · ${fmt.int(h.total - h.average.activities)} this week, not yet in the average` : '')
+          : '' },
       { label: 'Weeks logged', value: fmt.int(h.weeks), note: `${years.length} calendar year${years.length === 1 ? '' : 's'}` },
       /* Every kind that carries a distance, which now includes soccer and
          quick feet — the watch measures them. The caption said "running,
