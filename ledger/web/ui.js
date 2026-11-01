@@ -343,6 +343,26 @@ export const RANGE_PRESETS = [
   ['ytd', 'This year'], ['all', 'All time'],
 ];
 
+/* The range picked on a Sports page is one choice shared by the three of
+   them and kept across visits: 12 weeks on Soccer is 12 weeks on Running and
+   on Lifting until it is changed, rather than each page snapping back to its
+   own default on every arrival. The URL still wins when it names a range, so
+   a shared link lands where it points. */
+const SPORTS_RANGE_KEY = 'ledger.sportsRange';
+const isPreset = (v) => RANGE_PRESETS.some(([k]) => k === v);
+export function sportsRange(route, fallback) {
+  const q = route.query.get('range');
+  if (isPreset(q)) return q;
+  try {
+    const v = localStorage.getItem(SPORTS_RANGE_KEY);
+    if (isPreset(v)) return v;
+  } catch { /* private mode */ }
+  return fallback;
+}
+export function rememberSportsRange(v) {
+  try { localStorage.setItem(SPORTS_RANGE_KEY, v); } catch { /* private mode */ }
+}
+
 /**
  * Resolve a preset key to {from, to}. `all` means unbounded, so both null.
  *

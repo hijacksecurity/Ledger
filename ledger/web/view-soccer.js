@@ -18,7 +18,7 @@ import {
 } from './core.js';
 import {
   panel, panelError, statStrip, segmented, emptyNote, skeletonBlock, readout,
-  resultChip, RANGE_PRESETS, resolveRange, sportTabs, dowBadge,
+  resultChip, RANGE_PRESETS, sportsRange, rememberSportsRange, resolveRange, sportTabs, dowBadge,
   sectionRule, collapsible, setTimeframe,
 } from './ui.js';
 import { figure } from './charts.js';
@@ -29,7 +29,7 @@ import {
 
 export function mount(host, route, { setQuery }) {
   const state = {
-    range: route.query.get('range') || 'all',
+    range: sportsRange(route, 'all'),
     team: TEAMS.some((t) => t.key === route.query.get('team')) ? route.query.get('team') : null,
   };
   let figs = [];
@@ -703,7 +703,7 @@ export function mount(host, route, { setQuery }) {
       el('div', { class: 'filter' }, [
         el('span', { class: 'lbl', text: 'Range' }),
         segmented(RANGE_PRESETS, state.range, (v) => {
-          state.range = v; setQuery({ range: v }); buildFilters(); load();
+          state.range = v; rememberSportsRange(v); setQuery({ range: v }); buildFilters(); load();
         }, 'Date range'),
       ]),
       el('div', { class: 'filter' }, [el('span', { class: 'lbl', text: 'Fixture' }), teamRow]),

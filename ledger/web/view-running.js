@@ -12,7 +12,7 @@ import {
 } from './core.js';
 import {
   panel, panelError, statStrip, segmented, emptyNote, skeletonBlock, readout,
-  sportTabs, RANGE_PRESETS, resolveRange, dowBadge, kindName,
+  sportTabs, RANGE_PRESETS, sportsRange, rememberSportsRange, resolveRange, dowBadge, kindName,
   sectionRule, collapsible, setTimeframe, setTools,
 } from './ui.js';
 import { figure, splitBar } from './charts.js';
@@ -27,7 +27,7 @@ const saveDist = (k) => { try { localStorage.setItem(DIST_KEY, k); } catch { /* 
 
 export function mount(host, route, { setQuery }) {
   const state = {
-    range: route.query.get('range') || '52w',
+    range: sportsRange(route, '52w'),
     grain: route.query.get('by') === 'week' ? 'week' : 'month',
     /* The URL first, then whatever was picked last time, then 5 km. A page
        change or a refresh drops the query, and coming back to find the panel
@@ -107,7 +107,7 @@ export function mount(host, route, { setQuery }) {
       el('div', { class: 'filter' }, [
         el('span', { class: 'lbl', text: 'Range' }),
         segmented(RANGE_PRESETS, state.range, (v) => {
-          state.range = v; setQuery({ range: v }); buildFilters(); load();
+          state.range = v; rememberSportsRange(v); setQuery({ range: v }); buildFilters(); load();
         }, 'Date range'),
       ]),
     );

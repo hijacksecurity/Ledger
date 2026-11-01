@@ -74,6 +74,13 @@ per theme from the validated palette, not the same values dimmed. The toggle
 persists in `localStorage`, is applied inline before first paint so there is no
 flash, and updates `<meta name="theme-color">`.
 
+**The Sports range is one choice, remembered.** Soccer, Running and Lifting
+share the range picked in their filter bar (`ledger.sportsRange` in
+`localStorage`, via `sportsRange()` / `rememberSportsRange()` in `ui.js`):
+12 weeks on one is 12 weeks on the others and on the next visit, instead of
+each page snapping back to its own default. A `range=` in the URL still wins,
+so a shared link lands where it points.
+
 **Colour is fixed to modality, never to rank.** Soccer is blue on every screen
 whether or not anything else is present, so filtering a series out never
 repaints the survivors. Both palettes were run through the validator: dark

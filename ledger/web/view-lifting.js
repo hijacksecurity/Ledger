@@ -16,7 +16,7 @@ import {
 } from './core.js';
 import {
   panel, panelError, statStrip, segmented, emptyNote, skeletonBlock, readout,
-  sportTabs, RANGE_PRESETS, resolveRange, dowBadge, sectionRule, collapsible,
+  sportTabs, RANGE_PRESETS, sportsRange, rememberSportsRange, resolveRange, dowBadge, sectionRule, collapsible,
   setTimeframe,
 } from './ui.js';
 import { figure, splitBar } from './charts.js';
@@ -34,7 +34,7 @@ const writeConstraint = (v) => {
 };
 
 export function mount(host, route, { setQuery }) {
-  const state = { range: route.query.get('range') || 'all' };
+  const state = { range: sportsRange(route, 'all') };
   let figs = [];
   let alive = true;
   let seq = 0;
@@ -73,7 +73,7 @@ export function mount(host, route, { setQuery }) {
     filters.append(el('div', { class: 'filter' }, [
       el('span', { class: 'lbl', text: 'Range' }),
       segmented(RANGE_PRESETS, state.range, (v) => {
-        state.range = v; setQuery({ range: v }); buildFilters(); load();
+        state.range = v; rememberSportsRange(v); setQuery({ range: v }); buildFilters(); load();
       }, 'Date range'),
     ]));
   }
