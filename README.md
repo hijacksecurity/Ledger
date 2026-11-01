@@ -11,6 +11,20 @@ on a computer at home and is reached over the home network or a private
 network such as Tailscale. See [docs/BRIEF.md](docs/BRIEF.md) for the design
 brief and the things it deliberately does not do.
 
+## What it looks like
+
+![Week](docs/screenshots/week.png)
+
+![Scoreboard](docs/screenshots/score.png)
+
+![Calendar](docs/screenshots/calendar.png)
+
+![Soccer](docs/screenshots/soccer.png)
+
+The numbers above are invented: `scripts/demo_data.py` builds a demo
+database, which is also the quickest way to try the app without a Garmin
+account (`LEDGER_DB_PATH=data/demo.db uvicorn ledger.api.main:app`).
+
 ## What it shows
 
 | Page | What it answers |

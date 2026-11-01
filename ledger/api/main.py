@@ -881,9 +881,11 @@ def daily_metrics(
     if start > end:
         raise HTTPException(422, "from is after to")
     rows = [dict(r) for r in q.metrics_between(conn, start, end)]
+    # The window is the span asked for, not the rows that came back: a
+    # 28-day range with one unsynced night is still "last 28 days".
     tf = (
         timeframe.all_time(start, end, "day") if all
-        else timeframe.window(start, end, "day", len(rows))
+        else timeframe.window(start, end, "day")
     )
     return {"timeframe": tf.as_dict(), "days": rows}
 
