@@ -90,7 +90,8 @@ every one that is missed.
   8001 against `data/demo.db`, look at it, then copy over and bump `sw.js`
   VERSION and `app.js` BUILD.
 - **Look at it as a stranger, on a phone, in both themes**, before it goes
-  live. Every number, mark and colour must say what it is and which way is
+  live — and at a laptop width (1280) too: anything that widens the top bar
+  or a row has to fit there, not only at 1440. Every number, mark and colour must say what it is and which way is
   good without the source code. Screenshots, not diffs.
 - **A chosen window is remembered** across visits (`rememberedChoice` /
   `rememberChoice`, or the Sports pair). The URL still wins. A position in
@@ -180,11 +181,13 @@ asked for directly — the page has to be read at arm's length without reading
 
 - The standing is computed once, server-side (`report/calories.py::standing_of`),
   in five words — met, close, short, over, far_over — and drawn in **three
-  colours everybody already knows**: green under the limit, amber past the
-  limit but under the burn, red over the burn. The words live in titles and
-  aria text; the colour is what is read, by the user's direct request.
-- Today is tinted on its projection and carries an `est` tag wherever it
-  appears, because it is not over.
+  colours everybody already knows**: green for a deficit at or past the
+  target, amber for a smaller deficit, red for a day that ate more than it
+  burned. A key on the same screen names the target in kcal.
+- Today is tinted on its projection and is labelled as one — "so far" in its
+  cell, "burn (est)" under the bar — because it is not over.
+- Bodyweight on that page is green or red only for direction *toward or away
+  from the goal weight*, and untinted while no goal is set.
 - The target is the user's own number, printed on the page beside the
   figures. Nothing else on the page carries a hue it has not earned; meal
   hues mean *which meal*, never how big.

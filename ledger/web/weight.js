@@ -110,8 +110,8 @@ export function weightDeltaTile(bw, weeks, unit, label = `${weeks} weeks`) {
  *   etaDate       the date the slope reaches the goal, or null when it is not
  *                 heading there (or is already there, or is too slow to say)
  *   direction     'toward' | 'away' | 'flat' — flat under 0.5 lb of change.
- *                 With no goal, down counts as toward: this panel sits on a
- *                 deficit page, and the title says so.
+ *                 With no goal, down counts as toward; the Calories page
+ *                 does not colour by it until a goal is set.
  *
  * Nothing here is smoothed onto the chart; these are figures for tiles.
  */

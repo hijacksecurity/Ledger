@@ -28,3 +28,11 @@ Section map, so the in-code references resolve until the real text lands:
 > log. The actual notebook contains no weight×reps data at all. See
 > [NOTEBOOK.md](NOTEBOOK.md) — it is the authoritative description of the source
 > data, and `002_notebook_reality.sql` follows it rather than §4.
+>
+> **§2 and §7, bodyweight:** it is now plotted as the readings themselves —
+> the 7-day EMA is still published by the API but nothing draws it — and two
+> pages colour it, both by direct request: the Scoreboard scores the
+> four-week average's movement toward a goal weight, and the Calories page
+> tints the latest reading green or red for direction toward that goal
+> (untinted when none is set). Neither scores the number itself. `CLAUDE.md`
+> records both exceptions and the rules that keep them honest.

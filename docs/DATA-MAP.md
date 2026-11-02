@@ -177,13 +177,15 @@ baseline (falling back to 28, then to scaling today's own figure by
 
 | Surface | Where | Notes |
 |---|---|---|
-| Hero figure, arithmetic line, the bar, the Garmin stamp | `#/calories` | `deficit` = `burn.total` − `intake`; the line is the server's `arithmetic` string printed verbatim; the bar's width is `burn.total`, its tick `eat_up_to` |
-| Eaten / Burned / Left to eat tiles | `#/calories` | `intake`, `burn.total` (labelled "est." when `burn.estimated`), `left` |
-| Deficit, day by day | `#/calories` | Finished days with ≥1 meal only; today is never a point; columns are the deficit's size in the standing's tone; `summary.mean_deficit_7/28` with their `days_counted` and `standing_7/28` |
+| Hero figure | `#/calories`, `#/week` | `heroOf()` in `calories.js`: today (burn not complete) = `left` as "left to eat" or "over target"; a finished day = `deficit` as "deficit" or "surplus"; colour = `standing` |
+| Pill | `#/calories`, `#/week` | `standingPill()`: today = `deficit` beside `target`; a finished day = the standing in words with the target in kcal |
+| The bar and its pairs, the sync stamp | `#/calories`, `#/week` (compact) | `fuelBar()`: width `burn.total`, fill `intake` (green to `eat_up_to`, amber beyond, red past the burn), tick `eat_up_to`; pairs eaten / eat up to / burn ("burn (est)" while `burn.estimated`), then `burn.bmr` as base and `burn.active` as active; stamp = `burn.fetched_at` |
+| Deficit, day by day | `#/calories` | Window ends **yesterday** — the window `summary.mean_deficit_7/28` is taken over, so the tiles and the bars count the same days; finished days with ≥1 meal only; columns are `|deficit|` in the standing's colour; mean tiles carry `standing_7/28` |
 | Week strip (seven cells) | `#/calories`, `#/week` | `weekStrip()` in `calories.js`; cell = `|deficit|` in the colour of `standing` (green met, amber close/short, red over/far_over), "so far" under today's while `burn.estimated`; unlogged = hollow dash. Key from `colourKey(target)` |
-| Calories widget — left today, pill, compact bar | `#/week` | `fuelBar()` / `standingPill()` in `calories.js`, fed `/api/calories` for the week on screen |
+| Calories widget — the week's cells and key, then the hero, pill and compact bar | `#/week` | The same `calories.js` builders, fed `/api/calories` for the week on screen |
 | `POST /api/calories/refresh` | `#/calories` | Pulls today's `get_stats_and_body` when `burn.stale` (fetched over 10 min ago); one in flight, 60 s floor, refused during a full sync |
 | `/api/metrics` rows | MCP `daily_metrics` | Raw passthrough — the columns, not an interpretation |
+| `arithmetic` | MCP `calories` | The whole sum as one line, for a reader that wants prose; no page prints it since the hero became figures and icons |
 
 **Trap:** never read `calories_total` as a day's burn without
 `day_elapsed_min`. The row the nightly wrote at 03:00 reads a few hundred
@@ -203,24 +205,25 @@ nothing references a meal and nothing stores a day's sum.
 | Surface | Where | Notes |
 |---|---|---|
 | Meals, Add a meal | `#/calories` | The list and the form; both repaint from the `day` a write returns |
-| Hero intake, Eaten tile, the bar's fill | `#/calories` | `intake` is summed server-side |
+| The eaten pair, the bar's fill, the Meals footer total | `#/calories`, `#/week` | `intake` is summed server-side |
 | Deficit, day by day | `#/calories` | A day with no meal rows is **unlogged, not zero** — left out of the plot and both means |
 
 ### `setting.calories_deficit_target_kcal`  →  `GET /api/calories/settings`
 500 until set (`target_is_default`). The one number every day is measured
-against; nothing tints by it.
+against: `standing` is read against it, and the colours on `#/calories` and
+the `#/week` widget follow `standing`.
 
 | Surface | Where |
 |---|---|
 | Daily target panel | `#/calories` |
-| `eat_up_to` tick on the bar, the Left to eat tile's note, the Target tile and the target guide on *Deficit, day by day* | `#/calories` |
+| `eat_up_to` tick and pair on the bar, the "target N" pill, the key under the week cells ("deficit N+"), the target guide and legend on *Deficit, day by day* | `#/calories`, `#/week` |
 
 ### `bodyweight` (`ema_kg`, `delta_4w_kg`, `series[].kg`)
 | Surface | Where |
 |---|---|
 | Bodyweight tile | `#/week` |
 | Bodyweight chart, delta tiles, fasting overlay | `#/all` |
-| Bodyweight hero (latest, coloured by direction), change pill, Pace / To goal / Low·high tiles, the line with every weigh-in ringed, goal guide | `#/calories` — `weightFigureSpec()` and `weightStats()` in `weight.js`; the same spec `#/all` draws, minus the on-line extreme labels. Pace is the least-squares slope over the window; `etaDate` only when the slope heads for the goal |
+| Bodyweight hero (latest; green/red toward/away from the goal, untinted with no goal), change pill "since <date>", Pace / To goal / Low·high tiles, the line with every weigh-in ringed, goal guide | `#/calories` — `weightFigureSpec()` and `weightStats()` in `weight.js`; the same spec `#/all` draws, minus the on-line labels. Pace is the least-squares slope over the window; `etaDate` only when the slope heads for the goal; a goal outside the readings' reach is drawn at the edge (`fit: false`) |
 | Bodyweight pillar | `#/score` |
 | Weight insights | `#/insights` |
 
@@ -405,7 +408,7 @@ pillar is absent while it is null. Server-side since migration 017 (was
 |---|---|
 | Goal weight setting | `#/plan` |
 | Bodyweight pillar | `#/score`, the score tile on `#/week` |
-| To goal tile, the goal form under the chart (writes through `setGoalWeightLb`), the dashed goal guide | `#/calories` — reads `loadPlanState()` / `goalWeightLb()`, the same snapshot as `#/plan`, `#/week` and `#/score`, so a goal saved in the browser before migration 017 is carried to the server from this page too; direction toward the goal colours the hero and the pace; with no goal, down counts as toward on this page and the pill's title says so |
+| To goal tile, the goal form under the chart (writes through `setGoalWeightLb`), the dashed goal guide | `#/calories` — reads `loadPlanState()` / `goalWeightLb()`, the same snapshot as `#/plan`, `#/week` and `#/score`, so a goal saved in the browser before migration 017 is carried to the server from this page too; direction toward the goal colours the hero and the pace; with no goal nothing is tinted |
 
 ### `/api/plan/days` — `km`, `match`
 `{ week_start, km: { date: n }, match: [dates] }` — how a week's committed
@@ -459,16 +462,16 @@ Counts from `scripts/inventory.py`; run it after adding a panel.
 
 | Page | Panels | Charts | Tables | Stat strips |
 |---|---|---|---|---|
-| `#/week` | 13 | 2 | 0 | 4 |
+| `#/week` | 14 | 2 | 0 | 4 |
 | `#/score` | 4 | 1 | 2 | 2 |
 | `#/calendar` | 1 | 0 | 0 | 1 |
-| `#/habits` | 3 | 0 | 0 | 1 |
-| `#/calories` | 5 | 2 | 0 | 3 |
-| `#/recovery` | 16 | 4 | 8 | 0 |
+| `#/habits` | 4 | 1 | 0 | 1 |
+| `#/calories` | 5 | 2 | 0 | 2 |
+| `#/recovery` | 16 | 5 | 6 | 0 |
 | `#/plan` | 10 | 3 | 4 | 3 |
 | `#/insights` | 2 | 0 | 0 | 0 |
-| `#/soccer` | 9 | 4 | 5 | 2 |
-| `#/running` | 10 | 7 | 5 | 3 |
+| `#/soccer` | 10 | 4 | 5 | 2 |
+| `#/running` | 10 | 7 | 6 | 3 |
 | `#/lifting` | 7 | 3 | 2 | 1 |
 | `#/trends` | 6 | 4 | 0 | 1 |
 | `#/all` | 9 | 8 | 0 | 4 |
@@ -618,10 +621,9 @@ nobody indexed is a panel nobody will think to re-check when its data changes.
 
 ### `#/week`
 
-- Calories
-
 - Distance this week
 - Habits
+- Calories
 - Recovery
 - Week score
 - This week on one scale
@@ -662,7 +664,7 @@ Things that must agree. Each one is here because it once did not.
 | 16 | Recovery: the `#/week` footnote (week mean vs 28-day mean of HRV, resting HR, readiness, sleep) == the *This week* and *Last 28 nights* columns on `#/recovery` — verified equal on 2026-10-31; both are plain means over `metric_daily` with the same Monday and the same trailing window |
 | 18 | Two activity totals on `#/all` are two quantities and are labelled as such: "In the average" is `history.average.activities` (through the last completed Sunday, what the lifetime average divides) and "Activities" is `history.total` (everything on record, the week in progress included); each tile names the gap between them |
 | 17 | The six Recovery cards on `#/week` == the same six cards on `#/recovery` (last night, the week, the 28 nights, and every tag): one builder, `measureCards()` in `recovery-cards.js`, fed the same `/api/metrics` rows; neither page computes a reading itself |
-| 19 | The `#/calories` hero figure == `burn.total − intake` for that day's `/api/calories` payload; the arithmetic line is the server's string verbatim; the Table view of *Deficit, day by day* prints the same `deficit` for every finished, logged day; the Eaten tile == the Meals footer total |
+| 19 | The `#/calories` hero is the payload's own figure — `left` today, `deficit` on a finished day — and a day's cell, its hero and its pill agree; the 7-day mean tile equals the mean of the bars *Deficit, day by day* draws for 7 days (both end yesterday); the eaten pair == the Meals footer total |
 | 20 | Bodyweight readings on `#/calories` == `#/all` for the same dates — both draw `history.bodyweight[].kg` through `weightFigureSpec()` |
 | 21 | A day's cell on the `#/week` Calories widget == the same day's cell on `#/calories` (figure, tone, word): one builder, `weekStrip()`, fed the same `/api/calories` days; the standing is the server's |
 

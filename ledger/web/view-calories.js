@@ -2,16 +2,18 @@
  *
  * Built around one requirement the user stated plainly: the running count
  * was being kept in their head, and the page has to be read at arm's length
- * without reading. So the top of the page is one number — what is left to
- * eat today — in the colour of where the day stands, a bar, three icons with
- * figures under it, and a box that takes a number and an Add button. No
- * sentences on the fast path. Labels are chips, and they are labels, not
- * slots — a day can have two snacks.
+ * without reading. So the top of the page is the week as seven coloured
+ * cells, then one number that says in two words what it is (left to eat
+ * today; the deficit on a finished day), the deficit beside the target, a
+ * bar with icon-and-figure pairs, and a box that takes a number and an Add
+ * button. Labels are chips, and they are labels, not slots — a day can have
+ * two snacks.
  *
- *   **Colour was asked for.** A day's standing against the target takes the
- *   Scoreboard's five-tone ramp (`calories.js`), on the hero figure, the
- *   bar, the week strip and the history columns. The word is always printed
- *   beside it, and today carries an `est` tag because it is not over.
+ *   **Colour was asked for.** A day's standing against the target is drawn
+ *   in three colours (`calories.js`) on the hero, the bar, the week cells and
+ *   the history columns, with a key that names the target in kcal. Today is
+ *   labelled as an estimate — "so far", "burn (est)" — because it is not
+ *   over.
  *
  *   **It does not compute anything.** Intake, burn, deficit, "eat up to",
  *   the standing, the means and the arithmetic all come from `/api/calories`.
@@ -283,8 +285,8 @@ export function mount(host, route, { setQuery }) {
     paintStamp();
   }
 
-  /* One row: ⟳ and the time Garmin last answered, and a Σ that unfolds the
-     arithmetic for anyone who wants to redo it. */
+  /* One row under the bar: ⟳ to pull now, and when Garmin last answered.
+     The baseline's provenance is in the title. */
   function paintStamp() {
     const node = heroAside.querySelector('#cal-stamp');
     if (!node) return;

@@ -19,6 +19,8 @@ brief and the things it deliberately does not do.
 
 ![Calendar](docs/screenshots/calendar.png)
 
+![Calories](docs/screenshots/calories.png)
+
 ![Soccer](docs/screenshots/soccer.png)
 
 The numbers above are invented: `scripts/demo_data.py` builds a demo
@@ -33,6 +35,7 @@ account (`LEDGER_DB_PATH=data/demo.db uvicorn ledger.api.main:app`).
 | **Score** | A week grade and a lifetime level — the one place the app judges anything |
 | **Calendar** | Every day at a glance |
 | **Habits** | Did the small daily things happen |
+| **Calories** | What went in today against what the watch says went out: kcal left to eat, the week's deficits against a daily target, and bodyweight beside them |
 | **Recovery** | Sleep, HRV, resting heart rate, readiness and stress from the watch, read against your own ranges, and what they have to do with the training |
 | **Plan** | How far to run next week, and the weeks after |
 | **Insights** | What the record says about itself |
@@ -43,17 +46,27 @@ account (`LEDGER_DB_PATH=data/demo.db uvicorn ledger.api.main:app`).
 Everything is a plain web page served by the app; there is nothing to install
 on a phone beyond adding the page to the home screen.
 
-## Principles
+## What you can count on
 
-- **No streaks.** A missed day lowers a rolling count; it never resets one.
-- **Rolling windows only.** "Last 28 days" rather than "this month".
-- **Load is one scale.** Every session, whatever the sport, is scored as
-  effort × minutes (Foster's session-RPE), so a match and a run add up.
-- **Heuristics are shown as heuristics.** The acute:chronic ratio is a
-  position on a scale, never an alarm.
-- **Colour is a reading on a published scale, not a verdict** — Garmin's own
-  bands for Garmin's scores, your own range for HRV, your own sleep need for
-  sleep.
+- **Your record stays on your machine.** No account and no telemetry; nothing
+  leaves the computer unless you point the nightly backup at a private repo
+  yourself. The app only reads from Garmin, never writes to it, and paces
+  every call so the unofficial API has no reason to block your account.
+- **One number, one meaning, on every screen.** Each figure is computed in
+  exactly one place and every page reads it from there, so the Week page and
+  the Scoreboard cannot disagree about the same week.
+  [docs/DATA-MAP.md](docs/DATA-MAP.md) lists every screen that shows each
+  field.
+- **You can check any figure.** Every chart has a Table view, every rate shows
+  what it was divided by, and an estimate — today's burn before midnight, an
+  effort rating Garmin inferred — is labelled as one.
+- **A gap is not a zero.** A night the watch was off, or a day with no meals
+  logged, is left out of every average rather than dragging it down.
+- **Every sport on one scale.** Each session counts as effort × minutes
+  (Foster's session-RPE), so a match, a run and a lift add up to one weekly
+  load you can compare week to week.
+- **Nothing resets.** Everything is a rolling window: a missed day dips a
+  figure and the next good one lifts it. There are no streaks to protect.
 
 ## Quick start
 
@@ -93,13 +106,14 @@ fixture and the opponent's form. Set the provider details in `.env` (see
 
 ```
 ledger/
-  config.py            environment -> Config. No config file, no settings table.
+  config.py            environment -> Config. No config file; the few things set
+                       in the app (goal weight, calorie target) live in `setting`
   cli.py               init, garmin-login, sync, backfill, add, rpe, report, leagues
   entry.py             bulk-entry grammar for notebook pages (docs/NOTEBOOK.md)
   ingest.py            persist a session, then score PRs
   leagues.py           league tables and fixtures from ezleagues and DaySmart
   db/
-    migrations/        001..016, append-only — never edited in place
+    migrations/        001..018, append-only — never edited in place
     schema.py          connection pragmas + migration runner
     queries.py         every SQL statement in the project
   core/                pure, no I/O, heavily tested
@@ -163,9 +177,13 @@ Converting to UTC misattributes late-evening sessions to the next day.
 
 **Every screen is indexed.** `docs/DATA-MAP.md` lists which panels read which
 fields; `scripts/inventory.py --check` fails when a panel is missing from it.
-`scripts/qa.py` drives every page in both themes and both viewports and fails
-on overlap, clipped text, empty panels, unlabelled periods, low contrast and
-small tap targets.
+`scripts/qa.py` drives every page in both themes at phone, laptop and desktop
+widths and fails
+on overlap, clipped text, empty panels, unlabelled periods, low contrast,
+small tap targets and a colour class that does not paint.
+`scripts/conventions.py --check` fails when a view breaks a convention the
+rest keep — a window choice that is not remembered, a module missing from
+the offline shell, a page the audit does not visit.
 
 ## Contributing
 
@@ -196,8 +214,8 @@ sync idempotency, league-season discovery. Glue code is deliberately untested.
 ## Reading it from Claude
 
 `ledger/mcp/` serves the read API as MCP tools, so a Claude session on
-the same machine can ask about a week, a session, the watch's nightly numbers
-or the sync without opening the app. It is a proxy over the running app:
+the same machine can ask about a week, a session, the watch's nightly numbers,
+calories eaten and burned, or the sync without opening the app. It is a proxy over the running app:
 every tool is one GET, nothing is computed twice, and the number quoted in a
 chat is the number on the screen. Read-only. The Scoreboard is deliberately
 not exposed.

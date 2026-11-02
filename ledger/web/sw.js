@@ -13,7 +13,7 @@
  * Bump VERSION on every shell change.
  */
 
-const VERSION = 'ledger-v147';
+const VERSION = 'ledger-v148';
 const NET_TIMEOUT_MS = 3500;
 
 const SHELL = [

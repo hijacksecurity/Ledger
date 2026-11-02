@@ -10,6 +10,7 @@ questions a person would ask looking at the screen:
   * Is text readable against what is behind it?
   * Can a thumb hit the controls on a phone?
   * Does the same number appear twice with two different values?
+  * Does every colour class actually paint the colour it names?
 
 Run it after every change:
 
@@ -40,7 +41,9 @@ BASE = "http://127.0.0.1:8000"
 ROUTES = ["week", "score", "calendar", "habits", "calories", "recovery", "plan", "intent", "insights", "soccer",
           "running", "lifting", "trends", "log", "all", "sync", "add"]
 
-VIEWPORTS = [("desktop", 1440, 1000), ("phone", 390, 844)]
+#: A laptop width as well as the two extremes: eleven top tabs fitted at
+#: 1440 and pushed every page sideways at 1280, and nothing here looked.
+VIEWPORTS = [("desktop", 1440, 1000), ("laptop", 1280, 800), ("phone", 390, 844)]
 THEMES = ["dark", "light"]
 
 #: Minimum comfortable tap target. Apple says 44, Material 48; 40 is the floor

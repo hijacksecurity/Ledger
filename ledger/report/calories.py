@@ -28,9 +28,10 @@ as one line the page shows verbatim, so the reader can redo it by hand and
 nothing downstream recomputes it.
 
 `standing` is the one judgement here, and it was asked for: where the day's
-deficit sits against the target, in five words the pages colour on the
-Scoreboard's ramp. It is computed once, here, so the Calories page and the
-Week widget cannot disagree about a day.
+deficit sits against the target, in five words the pages draw in three
+colours (target met, a smaller deficit, more eaten than burned). It is
+computed once, here, so the Calories page and the Week widget cannot
+disagree about a day.
 """
 
 from __future__ import annotations

@@ -403,10 +403,10 @@ svg:not(.sprite):not(.plot) {
 .brand-mark i:nth-child(2) { height: 11px; background: var(--k-run); }
 .brand-mark i:nth-child(3) { height: 15px; background: var(--k-bike); }
 
-.toptabs { display: none; gap: .1rem; margin-right: auto; }
+.toptabs { display: none; gap: 0; margin-right: auto; }
 .toptabs a {
-  display: inline-flex; align-items: center; gap: .45rem;
-  padding: .42rem .7rem; border-radius: var(--r-sm);
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .42rem .5rem; border-radius: var(--r-sm);
   font-size: var(--t-sm); font-weight: 520; color: var(--ink-3);
   text-decoration: none; white-space: nowrap;
   transition: color var(--dur), background var(--dur);
@@ -788,11 +788,26 @@ kbd {
 }
 
 @media (min-width: 900px) {
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* The top tabs need about 970px for eleven destinations with their icons,
+   plus the brand and the actions either side. Switched on at 900px they
+   pushed the whole page sideways on every laptop — 112px at 1280, 4px even
+   at 1440 once a classic scrollbar takes its 15. So the bottom bar, which
+   already wraps every destination onto two rows, stays until 1100px; from
+   there to 1500 the tabs drop their icons and tighten; above it they have
+   room for both. */
+@media (min-width: 1100px) {
   .toptabs { display: flex; }
   .add-top { display: inline-flex; }
   .tabbar, .fab { display: none; }
   main { padding-bottom: 5rem; }
-  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 1100px) and (max-width: 1499.98px) {
+  .toptabs { gap: 0; }
+  .toptabs a { padding: .42rem .5rem; gap: 0; }
+  .toptabs a svg { display: none; }
 }
 
 /* ══ motion ══════════════════════════════════════════════════════════════ */

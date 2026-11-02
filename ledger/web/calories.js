@@ -12,9 +12,9 @@
 import { el, icon, fmt } from './core.js';
 
 /* standing → colour. Three colours everybody already knows, not five:
-   green is under the limit (the target is met), amber is past the limit but
-   still under the burn, red is over the burn. The server's five words stay
-   in titles and aria text; the colour is what is read. */
+   green is a deficit at or past the target, amber a smaller deficit, red a
+   day that ate more than it burned. The words are for titles, aria text and
+   the past-day pill; the colour is what is read. */
 export const STANDING = {
   met: { tone: 'strong', word: 'Target met' },
   close: { tone: 'mixed', word: 'Short of target' },

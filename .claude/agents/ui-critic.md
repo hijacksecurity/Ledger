@@ -46,7 +46,9 @@ The pattern: the developer knew what it meant, so the page never said.
    Screenshot each panel with `browser_take_screenshot` and a `target`
    selector so the frame is the panel, not the viewport. Then switch theme
    (`localStorage.setItem('ledger.theme','light')` and reload) and do it
-   again. Then 1440×1000 once.
+   again. Then 1280×800 and 1440×1000 once each, and check the page does not
+   scroll sideways at either (`scrollWidth` against `clientWidth`) — eleven
+   top tabs once fitted at 1440 and pushed every page sideways at 1280.
 3. **Read each screenshot as a stranger.** For every number, mark, colour and
    word on it answer: what is this? which way is good? where does it come
    from? If any answer needs the source code, that is a finding.

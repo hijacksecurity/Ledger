@@ -18,6 +18,9 @@ score.js        the week score and the level — pure functions, no DOM
 habits.js       habit marks, words and hues — decides no day's state
 recovery.js     the nightly numbers — bands, ranges, findings; pure, no DOM
 recovery-cards.js  one card per measure, shared by #/recovery and #/week
+calories.js     the day's figure, pill, fuel bar, week strip and key — shared
+                by #/calories and #/week; decides no standing
+weight.js       bodyweight spec and sums, shared by #/all and #/calories
 view-*.js       one module per view
 sw.js           offline shell, network-first
 ```
@@ -52,8 +55,11 @@ Every view deep-links through the hash, including its filters
 the obvious thing. Filter changes use `replaceState` so a session of fiddling
 with controls does not bury the previous *view* in history.
 
-**Navigation.** Desktop: tabs in the top bar plus a filled *Add* button.
-Phone: the bottom tab bar wraps its cells onto a second row rather than
+**Navigation.** Desktop, from 1100px: tabs in the top bar plus a filled *Add*
+button; below 1500px the tabs drop their icons so eleven of them fit beside
+the brand and the actions — switched on at 900px they once pushed every page
+sideways on a laptop. Below 1100px, and on a phone: the bottom tab bar wraps
+its cells onto a second row rather than
 scrolling or hiding any of them, and *Add* is a floating button above it at the
 bottom-right — the easiest place a thumb reaches. Entry is a route, not an
 overlay, so the tab bar and the floating button get out of the way while you
@@ -393,48 +399,62 @@ comparison, and -100% is a calendar artefact dressed as a drop.
 
 **A meal is a number, and the count is no longer kept in a head.** `#/calories`
 exists because the running total of the day was being added up mentally. So
-the page is a figure — the deficit — the arithmetic behind it in one line, one
-bar, and directly under it a field that takes a number and a button that says
-Add. No food database, no macros, no second field that matters. The chips
-(breakfast, snack, lunch, dinner, bedtime, other) are labels, not slots: a day
-can carry two snacks, and whatever is typed over them is kept. A meal is
-hard-deleted when asked, because nothing references it and no total is stored.
+under the day's figures sits a field that takes a number and a button that
+says Add. No food database, no macros, no second field that matters. The
+chips (breakfast, snack, lunch, dinner, bedtime, other) are labels, not
+slots: a day can carry two snacks, and whatever is typed over them is kept.
+A meal is hard-deleted when asked, because nothing references it and no
+total is stored.
 
-**Burn is estimated until midnight, and the page says so three times.**
-Garmin pro-rates the day's BMR to the hours elapsed (at 18:36 it reads about
-three quarters of the full-day figure) while active calories are the running
-total, so neither is the day's burn. The server takes the median BMR of the
-last seven finished days as the full-day baseline and adds the activity so
-far — a floor, not a forecast, and it is marked `est.` under the figure, in
-the arithmetic line and in the note. A finished day uses the watch's own
-total. A past day the watch has nothing for has no deficit: a dash and the
-reason, never a guess. All of it is `report/calories.py`; the page computes
-nothing, and every write repaints from the day the server returns.
+**Burn is estimated until midnight, and the page says so.** Garmin pro-rates
+the day's BMR to the hours elapsed (at 18:36 it reads about three quarters of
+the full-day figure) while active calories are the running total, so neither
+is the day's burn. The server takes the median BMR of the last seven
+finished days as the full-day baseline and adds the activity so far — a
+floor, not a forecast — and the page labels it: "burn (est)" under the bar,
+"so far" in today's cell. A finished day uses the watch's own total. A past
+day the watch has nothing for has no deficit: a dash, never a guess. All of
+it is `report/calories.py`; the page computes nothing, and every write
+repaints from the day the server returns.
 
-**Read at arm's length, without reading.** The first version printed its
-reasoning in sentences and the user asked for icons and keywords instead. So
-the fast path is one number — what is left to eat today, in the colour of
-where the day stands — a pill with the deficit and one word, a bar, and
-three icon-and-figure pairs: eaten, limit, burn. The sum behind it is one
-tap away (Σ). Colour was asked for too, and in plain terms: three colours
-everybody already knows, applied to the server's `standing` — green under
-the limit, amber past the limit but under the burn, red over the burn. The
-bar fills green up to the limit tick and amber beyond it; the hero number is
-what is left to the limit, or `+N` past it; the pill is the deficit with an
-arrow and two words, "↓ 974 below burn" or "↑ 85 over burn" — an arrow and a
-number alone were not understood — and today is tagged `est`. The week's
-seven days sit above the hero as cells named Mon … Sun (never two letters),
-each showing the deficit that day ended on in its colour — green for the
-target met, amber for a smaller deficit, red for a day that ate more than it
-burned — with a key underneath that names the target in kcal. Today's cell
-says "so far" under its figure, because the day is not over; a dashed rule
-was tried for that first and had to be asked about. Tapping a cell opens
-that day. The history chart is
-columns in the same three colours, the size of each day's deficit, with
-over-days drawn as the overshoot in red. The burn is split under the bar
-into base and active, because the user wanted to see both. An unlogged day
-is not a zero: it is a gap, and it is left out of both rolling means, which
-count finished days with at least one meal and end yesterday.
+**Read at arm's length, without reading.** The first versions printed their
+reasoning in sentences, then swung to codes — arrows, two-letter days,
+abbreviated figures — and neither could be read at a glance. What stands now,
+top to bottom:
+
+- **The week**, seven cells named Mon … Sun (never two letters), each showing
+  the deficit that day ended on, in its colour. A key underneath names the
+  target in kcal: green "deficit 500+", amber "deficit under 500", red "ate
+  more than burned". Today's cell says "so far" under its figure; a dashed
+  rule was tried for that first and had to be asked about. Tapping a cell
+  opens that day.
+- **The big number** says what it is in two words under "kcal": today it is
+  *left to eat* before the target deficit is gone (or *over target*); on a
+  finished day it is the *deficit* the day ended on (or the *surplus*). A
+  finished day once showed "+179" — kcal past a limit that no longer moves —
+  and nobody could decode it. `heroOf()` in `calories.js` decides this once
+  for both pages.
+- **The pill** beside it puts the deficit next to the target — "974 deficit ·
+  target 500" — so the gap between the big number and the deficit is never
+  a mystery. On a finished day it says "500 target met" or "short of 500
+  target".
+- **The bar**: its width is the day's burn, its fill what was eaten — green
+  up to the "eat up to" tick, amber beyond it, all red when the plate passed
+  the burn. Under it, icon-and-figure pairs in the bar's own order: eaten,
+  eat up to, burn; then the burn split into base and active, because both
+  were wanted.
+
+Colour was asked for plainly: three colours everybody already knows, applied
+to the server's `standing`. It is the third tint exception in `CLAUDE.md`.
+
+**The history counts the days the means count.** *Deficit, day by day* is
+columns in the same three colours, one per finished day, the size of that
+day's deficit, with an over-day drawn as the overshoot in red. The window
+ends yesterday — the window the 7- and 28-day means are taken over — so the
+tile and the bars agree; the first version showed six bars under a seven-day
+mean. An unlogged day is not a zero: it is a gap, and it is left out of both
+means. Every window fits the card; a chart that scrolled opened past its own
+axis on a phone.
 
 **Bodyweight on that page is a dashboard, not a figure with numbers on it.**
 The first version printed the high, the low and the endpoint on the line and
@@ -442,26 +462,26 @@ they collided, and the figures picked for the tiles did not say what they
 measured. Now the latest reading leads, large, in green or red for which way
 it is going toward the goal — and untinted while no goal is set, because a
 direction is only good or bad against one; the change over the window is an
-arrow pill that names its start date; three
-tiles carry the figures with icons — pace in lb/wk from a least-squares slope
-over the window, to-goal with the month this pace gets there, and the
-window's low and high — and the line is left clean: sky blue, every weigh-in
-ringed, a faded wash under it, the goal dashed in the gutter. The goal is set
-right there, under the chart. All the sums are `weight.js`, shared with the
+arrow pill that names its start date; three tiles carry the figures with
+icons — pace in lb/wk from a least-squares slope over the window, to-goal
+with the month this pace gets there, and the window's low and high — and the
+line is left clean: sky blue, every weigh-in ringed, a faded wash under it,
+the goal dashed in the gutter. A goal far below the readings sits at the
+chart's edge labelled with an arrow rather than flattening the line. The
+goal is the Plan page's goal, read through the same snapshot, and can be set
+right there under the chart. All the sums are `weight.js`, shared with the
 All-time page, which keeps its labelled flagship.
 
-**The Week page carries the same widget, built by the same code.** Left to
-eat today, the pill, a compact bar and the seven cells — all from
-`calories.js`, so a day cannot read differently on the two pages. It sits
-with Habits and Recovery because it is about today.
+**The Week page carries the same widget, built by the same code.** The week's
+cells and their key, then left to eat today, the pill and a compact bar — in
+the same order and words as the top of `#/calories`, all from `calories.js`,
+so a day cannot read differently on the two pages. It sits with Habits and
+Recovery because it is about today.
 
 **Today's burn is pulled when the page opens, not on a timer.** Only when the
 stored row is older than ten minutes, one call, one in flight, a sixty-second
 floor on the server, and never while the nightly sync is running. The stamp
-beside the bar says when Garmin last answered, and the ⟳ next to it asks
-again. The bodyweight panel beneath draws the same weigh-ins as the All-time
-page through one shared spec (`weight.js`), with the goal weight from the
-Plan page as a dashed reference line.
+under the bar reads "burn synced HH:MM", and the ⟳ beside it asks again.
 
 **Habits are kept in one tap, and the box fills rather than renaming itself.**
 The decision was that a habit tracker should take one tap and no reading, so
@@ -732,7 +752,7 @@ claims clients immediately. Navigations fall back to the cached shell so any
 route still opens with no network.
 
 **Bump `VERSION` in `sw.js` on every shell change.** It is currently
-`ledger-v147`, and `SHELL` lists every module — a new `view-*.js` has to be
+`ledger-v148`, and `SHELL` lists every module — a new `view-*.js` has to be
 added there too.
 
 ---
@@ -818,11 +838,14 @@ There is no test runner here by design, but nothing was shipped unlooked-at:
 - The 84-week activities-per-week series anchored to the server's own basis, so
   the endpoint of the line, the History "Now" tile and the Week hero all read
   4.20 — one number, checked in all three places.
-- `scripts/qa.py` — every route x both themes x 1440px/390px, asserting no
+- `scripts/qa.py` — every route x both themes x 1440px/1280px/390px, asserting no
   horizontal overflow, nothing off the right edge, no clipped text, no empty or
   skeleton-stuck panel, no `undefined`/`NaN` in the DOM, a stated timeframe on
-  every charted panel, 40px tap targets on the phone, and measured contrast on
-  real rendered pairs. Taken from 675 findings to 109, and every one of the 109
+  every charted panel, 40px tap targets on the phone, measured contrast on
+  real rendered pairs, and every `tone-*` class resolving to its own colour.
+  The 1280px laptop pass was added when eleven top tabs fitted at 1440 and
+  overflowed at every narrower desktop width. Taken from 675 findings to 109,
+  and every one of the 109
   is a false positive in the harness rather than a fault in the app — see
   below.
 - Contrast measured independently with a probe that understands Chrome's
