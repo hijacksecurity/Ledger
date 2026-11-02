@@ -327,14 +327,17 @@ async def daily_metrics(
     """The watch's nightly numbers, one row per date: sleep, HRV, resting HR,
     readiness, stress, body battery, bodyweight.
 
-    Nulls are nights the watch was not worn, never zero. Default window is the
+    Nulls are nights the watch was not worn, never zero, except today's row
+    before the morning pull has read it: `sync_status` → `morning.today` is
+    `waiting` until the watch uploads the night. Default window is the
     trailing 28 days; `all_time` returns every night recorded.
 
     Rows also carry the raw burn columns (`calories_total`, `calories_active`,
     `calories_bmr`, `day_elapsed_min`) exactly as Garmin reported them at
     fetch time. Do not read `calories_total` as a day's burn from here: a row
-    with `day_elapsed_min` under 1440 is a partial day. The `calories` tool
-    has the interpreted figures.
+    with `day_elapsed_min` short of the whole local day (1440 minutes; 1500
+    the day the clocks go back, 1380 the day they go forward) is a partial
+    day. The `calories` tool has the interpreted figures.
     """
     return await _get(
         "/api/metrics", **{"from": from_date, "to": to_date}, all=all_time or None
@@ -438,8 +441,14 @@ async def exercise_last_sets(exercise_id: int) -> dict[str, Any]:
 
 @mcp.tool(annotations=READ_ONLY)
 async def sync_status() -> dict[str, Any]:
-    """Whether the nightly Garmin sync is working, when it last ran, when it
-    runs next, and what to do if it is not."""
+    """Whether the Garmin sync is working, when it last ran, and what to do if
+    it is not. `next_scheduled` is the nightly (03:00 unless configured).
+    `morning` is the morning pull that brings in the night just slept: its
+    window (`from`, `until`, local time), how often it asks (`every_min`),
+    and where today stands (`today`): `waiting` (no sleep score for today
+    yet), `settling` (the night is in; still reading) or `settled` (read;
+    no more pulls today, and readiness may still be null on a night Garmin
+    gave none)."""
     return await _get("/api/sync-status")
 
 

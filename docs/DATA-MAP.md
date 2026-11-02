@@ -164,8 +164,11 @@ Migration 018. From `get_stats_and_body`, the same payload the nightly
 already fetches, **as Garmin reported it at fetch time**: on an unfinished
 day `calories_bmr` is pro-rated to the hours elapsed and `calories_active`
 is the running total, and `day_elapsed_min` (durationInMilliseconds) says how
-much of the day the row covers; 1440 is a finished day. The 03:00 nightly
-writes a three-hour row for "today" by design. History filled by
+much of the day the row covers. A finished day covers the whole local day,
+which is 1440 minutes except when the clocks change: 1500 the day they go
+back, 1380 the day they go forward (`calories.day_minutes`). The 03:00
+nightly writes a three-hour row for "today" by design; the morning pull
+re-reads yesterday's stats once the watch has uploaded the end of it. History filled by
 `ledger backfill --metrics-only --endpoints get_stats_and_body`.
 
 `ledger/report/calories.py` is the **only** interpreter. It reads a
@@ -190,6 +193,13 @@ baseline (falling back to 28, then to scaling today's own figure by
 **Trap:** never read `calories_total` as a day's burn without
 `day_elapsed_min`. The row the nightly wrote at 03:00 reads a few hundred
 kcal, and a date in the past does not make it finished.
+
+**Trap:** never compare `day_elapsed_min` with 1440. On the day the clocks
+went back Garmin reported 1500 minutes and 25 hours of BMR; the mapper
+capped the duration at 24 hours and dropped it, the row kept the minutes of an
+evening pull, and the finished day printed a baseline estimate instead of the
+watch's figure. The cap is now 25 hours and completeness is measured against
+`day_minutes(date)`; the baseline median puts each day on 24 hours first.
 
 **`standing`** (met / close / short / over / far_over) is the one judgement
 and is computed only in `report/calories.py::standing_of`: deficit ≥ target,

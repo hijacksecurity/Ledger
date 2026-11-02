@@ -280,7 +280,19 @@ def test_parse_daily_stats_drops_implausible_calories():
         "totalKilocalories": -5, "activeKilocalories": 20_000,
         "bmrKilocalories": None, "durationInMilliseconds": 0,
     }) == {}
-    assert parse_daily_stats({"durationInMilliseconds": 90_000_000}) == {}
+    assert parse_daily_stats({"durationInMilliseconds": 90_000_001}) == {}
+
+
+def test_parse_daily_stats_keeps_the_25_hour_day():
+    """The day the clocks go back is 25 hours long. Garmin reports it whole;
+    a 24-hour ceiling dropped the figure and left the day looking unfinished."""
+    from ledger.garmin.mapping import parse_daily_stats
+
+    out = parse_daily_stats({
+        "totalKilocalories": 3000.0, "activeKilocalories": 700.0,
+        "bmrKilocalories": 2300.0, "durationInMilliseconds": 90_000_000,
+    })
+    assert out["day_elapsed_min"] == 1500
 
 
 def test_parse_hrv_detail_keeps_status_and_personal_range():

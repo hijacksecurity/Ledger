@@ -1417,9 +1417,14 @@ _sync_running = False
 
 @app.get("/api/sync-status")
 def sync_status(conn: DB) -> dict[str, Any]:
-    """Whether the nightly job is actually working, and what to do if not."""
+    """Whether the nightly job is actually working, and what to do if not.
+
+    `next_scheduled` is the nightly; `morning` is the morning pull's window and
+    where today's overnight numbers stand (waiting / settling / settled).
+    """
     body = status.build_status(conn, cfg.garmin_token_dir, running=_sync_running)
     body["next_scheduled"] = status.next_scheduled(int(os.getenv("LEDGER_CRON_HOUR", "3")))
+    body["morning"] = status.morning_schedule(conn)
     return body
 
 

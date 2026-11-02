@@ -154,6 +154,23 @@ export function mount(host) {
         lines.push(`Last failure — ${st.last_error.endpoint || 'sync'}: ${st.last_error.detail}`);
       }
       if (st.next_scheduled) lines.push(`Next scheduled run ${String(st.next_scheduled).replace('T', ' ')}.`);
+      if (st.morning) {
+        lines.push(`Morning pull ${st.morning.from} to ${st.morning.until}, every ${st.morning.every_min} minutes.`);
+        /* The server's word for where today stands; this only phrases it,
+           and sets it apart because it is the part read for. */
+        const today = {
+          waiting: 'not in yet — the watch has not uploaded the night',
+          settling: 'coming in now',
+          settled: 'in',
+        }[st.morning.today];
+        if (today) {
+          lines.push(el('p', { class: 'sub syncstate-morning' }, [
+            el('b', { text: "Last night's sleep, HRV and readiness:" }),
+            document.createTextNode(' '),
+            el('span', { text: `${today}.` }),
+          ]));
+        }
+      }
       if (st.next_action) lines.push(st.next_action);
 
       pStatus.head.querySelector('.sub').textContent = st.authenticated
@@ -248,7 +265,9 @@ export function mount(host) {
       el('span', { class: 'syncstate-word', text: word }),
     ]));
     wrap.append(el('p', { class: 'syncstate-head', text: headline }));
-    for (const l of lines || []) wrap.append(el('p', { class: 'sub', text: l }));
+    for (const l of lines || []) {
+      wrap.append(typeof l === 'string' ? el('p', { class: 'sub', text: l }) : l);
+    }
     if (command) wrap.append(commandLine(command));
     if (after) wrap.append(el('p', { class: 'sub', text: after }));
     return wrap;
@@ -461,6 +480,7 @@ export function mount(host) {
       'Never overwrites an RPE. Load stays yours: Garmin does not know how hard a soccer game felt, which is the entire reason this app exists.',
       'Anything it cannot map is written to the sync log and skipped. It is never guessed at.',
       'Bodyweight, resting HR, HRV and sleep come across for the same days where Garmin has them.',
+      'Each morning it also pulls last night\'s sleep, HRV and readiness as soon as the watch has uploaded them, then stops for the day.',
       'Rate-limited and idempotent, so running it twice in a row costs you nothing.',
     ]) ul.append(el('li', {}, [el('span', { text: line })]));
     pHow.body.append(ul);

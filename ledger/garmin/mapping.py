@@ -446,8 +446,10 @@ def parse_daily_stats(payload: Any) -> dict[str, Any]:
     take("calories_total", "totalKilocalories", 0, 15_000)
     take("calories_active", "activeKilocalories", 0, 10_000)
     take("calories_bmr", "bmrKilocalories", 0, 5_000)
+    # Up to 25 hours: the day the clocks go back is 1500 minutes long, and a
+    # 24-hour ceiling left that day's finished row looking unfinished.
     ms = _num(payload.get("durationInMilliseconds"))
-    if ms is not None and 0 < ms <= 86_400_000:
+    if ms is not None and 0 < ms <= 90_000_000:
         out["day_elapsed_min"] = round(ms / 60_000)
     return out
 

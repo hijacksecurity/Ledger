@@ -148,6 +148,13 @@ def test_tool_matches_api(api, tool, args, path):
     assert got == expected
 
 
+def test_sync_status_carries_the_morning_pull(api):
+    # The tool's description names these fields and states; keep it honest.
+    morning = call("sync_status")["morning"]
+    assert set(morning) == {"from", "until", "every_min", "today"}
+    assert morning["today"] in {"waiting", "settling", "settled"}
+
+
 def test_exercises_match_api(api):
     assert call("exercises")["exercises"] == api.get("/api/exercises").json()
 

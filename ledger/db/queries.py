@@ -44,6 +44,19 @@ def log_sync(
     )
 
 
+def last_ok_fetch(conn: sqlite3.Connection, endpoint: str, date_range: str) -> str | None:
+    """When `endpoint` last answered for `date_range`, as stored (UTC ISO)."""
+    row = conn.execute(
+        "SELECT MAX(ran_at) FROM sync_log WHERE endpoint = ? AND date_range = ? AND status = 'ok'",
+        (endpoint, date_range),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def metric_day(conn: sqlite3.Connection, day: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM metric_daily WHERE date = ?", (day,)).fetchone()
+
+
 def recent_sync_log(conn: sqlite3.Connection, limit: int = 50) -> list[sqlite3.Row]:
     return list(
         conn.execute("SELECT * FROM sync_log ORDER BY ran_at DESC, id DESC LIMIT ?", (limit,))

@@ -117,3 +117,17 @@ def test_garbled_timestamps_do_not_crash_the_status(conn, tokens):
     q.log_sync(conn, "get_activities_by_date", "ok")
     conn.execute("UPDATE sync_log SET ran_at = 'not a timestamp'")
     assert build_status(conn, tokens, now=NOW)["state"] == "never_succeeded"
+
+
+def test_the_morning_window_and_todays_state(conn):
+    from datetime import date
+
+    from ledger.garmin.status import morning_schedule
+
+    out = morning_schedule(conn, today=date(2026, 8, 9), env={})
+    assert out == {"from": "04:00", "until": "14:00", "every_min": 15, "today": "waiting"}
+    q.upsert_metric_daily(conn, "2026-08-09", sleep_score=70, readiness=60,
+                          sleep_end_local="2026-08-09T07:00")
+    out = morning_schedule(conn, today=date(2026, 8, 9),
+                           env={"LEDGER_MORNING_FROM": "5", "LEDGER_MORNING_UNTIL": "12"})
+    assert (out["from"], out["until"], out["today"]) == ("05:00", "12:00", "settling")

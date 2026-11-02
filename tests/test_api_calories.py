@@ -34,9 +34,15 @@ def client(tmp_path, monkeypatch):
         yield c
 
 
-def _seed_burn(client, day=YESTERDAY, bmr=2180, active=600, elapsed=1440):
+def _seed_burn(client, day=YESTERDAY, bmr=2180, active=600, elapsed=None):
+    """A finished day by default: the whole of that day, which is 1500
+    minutes when it is the day the clocks went back."""
     import ledger.api.main as main
     from ledger.db import queries as q
+    from ledger.report.calories import day_minutes
+
+    if elapsed is None:
+        elapsed = day_minutes(day)
 
     conn = main.connect(main.cfg.db_path)
     q.upsert_metric_daily(conn, day, calories_bmr=bmr, calories_active=active,

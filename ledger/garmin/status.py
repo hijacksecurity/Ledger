@@ -11,8 +11,10 @@ and if not, what is the next action.
 
 from __future__ import annotations
 
+import os
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from collections.abc import Mapping
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -130,6 +132,27 @@ def recent_log(conn: sqlite3.Connection, limit: int = 50) -> list[dict[str, Any]
         }
         for r in q.recent_sync_log(conn, limit=limit)
     ]
+
+
+def morning_schedule(
+    conn: sqlite3.Connection,
+    today: date | None = None,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """The morning pull's window, read from the same variables the cron
+    sidecar reads, and where today stands in it: waiting (the watch has not
+    uploaded the night), settling (it has; still reading), settled (done)."""
+    from ledger.garmin.sync import morning_state_for
+
+    env = os.environ if env is None else env
+    start = int(env.get("LEDGER_MORNING_FROM", "4"))
+    until = int(env.get("LEDGER_MORNING_UNTIL", "14"))
+    return {
+        "from": f"{start:02d}:00",
+        "until": f"{until:02d}:00",
+        "every_min": int(env.get("LEDGER_MORNING_EVERY_MIN", "15")),
+        "today": morning_state_for(conn, (today or date.today()).isoformat()),
+    }
 
 
 def next_scheduled(hour: int, now: datetime | None = None) -> str:

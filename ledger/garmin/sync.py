@@ -11,6 +11,11 @@ Contract, in priority order:
 
 The nightly job pulls the trailing 3 days: activities sync late and Garmin
 revises sleep and HRV after the fact. That is ~16 calls, well under 20.
+
+The nightly runs at 03:00, before anyone wakes, so it can never carry the
+night just slept. `sync_morning` does that: through the morning it asks
+whether last night's sleep is in yet — one call — and once the watch has
+uploaded it, pulls the rest of the morning's numbers and stops for the day.
 """
 
 from __future__ import annotations
@@ -332,6 +337,103 @@ def sync_metrics_for_day(
     if any(v is not None for v in values.values()):
         q.upsert_metric_daily(conn, day, **values)
         result.metric_days += 1
+
+
+# --- the morning pull -----------------------------------------------------
+#
+# Sleep, HRV, resting HR, readiness and the wake-time body battery all belong
+# to the night just slept, and Garmin has none of them until the watch uploads
+# after waking — any time from six to noon. The cron sidecar calls
+# `sync_morning` every quarter hour through a morning window; each call does
+# the least that answers "is it in yet":
+#
+#   waiting   no sleep score for today. One call (get_sleep_data) to look.
+#   settling  the night is in. Every metric endpoint for today, and
+#             yesterday's stats again, because the same upload carries the
+#             end of yesterday and its final burn.
+#   settled   read at least MORNING_SETTLE_MIN after waking, so Garmin has
+#             had time to compute readiness. No calls until tomorrow.
+#
+# A sleep score is the signal because Garmin scores a night only once it has
+# ended. A typical morning costs a call per quarter hour until the upload and
+# two or three full passes after it — well inside what the nightly spends.
+
+#: Minutes after waking before the morning's figures count as final.
+MORNING_SETTLE_MIN = 30
+#: With the night in but no readiness, stop asking after this long: some
+#: nights have none, and polling until noon would not conjure one.
+MORNING_GIVE_UP_MIN = 90
+
+MORNING_STATES = ("waiting", "settling", "settled")
+
+
+def _local_naive(value: str | None) -> datetime | None:
+    """A stored time as local wall-clock time without a zone, for comparing
+    against `sleep_end_local`. UTC stamps are converted; naive ones are local."""
+    if not value:
+        return None
+    try:
+        at = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if at.tzinfo is not None:
+        at = at.astimezone().replace(tzinfo=None)
+    return at
+
+
+def morning_state(
+    row: sqlite3.Row | dict[str, Any] | None, readiness_read_at: datetime | None
+) -> str:
+    """Where today's overnight numbers stand. `readiness_read_at` is the last
+    time readiness was asked for today, local and naive. See the block above."""
+    if row is None or row["sleep_score"] is None:
+        return "waiting"
+    if readiness_read_at is None:
+        return "settling"
+    wake = _local_naive(row["sleep_end_local"])
+    if wake is None:
+        return "settled" if row["readiness"] is not None else "settling"
+    waited = (readiness_read_at - wake).total_seconds() / 60
+    if waited >= MORNING_SETTLE_MIN and row["readiness"] is not None:
+        return "settled"
+    return "settled" if waited >= MORNING_GIVE_UP_MIN else "settling"
+
+
+def morning_state_for(conn: sqlite3.Connection, day: str) -> str:
+    return morning_state(
+        q.metric_day(conn, day),
+        _local_naive(q.last_ok_fetch(conn, "get_training_readiness", day)),
+    )
+
+
+def sync_morning(
+    conn: sqlite3.Connection, client: GarminClient, today: date | None = None
+) -> tuple[str, SyncResult]:
+    """One quarter-hour of the morning pull. Returns the state it leaves today in."""
+    today = today or date.today()
+    day = today.isoformat()
+    result = SyncResult()
+    try:
+        state = morning_state_for(conn, day)
+        if state == "settled":
+            return state, result
+        rest = METRIC_ENDPOINTS
+        if state == "waiting":
+            sync_metrics_for_day(conn, client, day, result, only=frozenset({"get_sleep_data"}))
+            if morning_state_for(conn, day) == "waiting":
+                return "waiting", result
+            rest = METRIC_ENDPOINTS - {"get_sleep_data"}
+        sync_metrics_for_day(conn, client, day, result, only=rest)
+        yesterday = (today - timedelta(days=1)).isoformat()
+        sync_metrics_for_day(
+            conn, client, yesterday, result, only=frozenset({"get_stats_and_body"})
+        )
+    except GarminRateLimited as exc:
+        result.errors.append(f"aborted: {exc}")
+        log.error("morning pull aborted, rate limited: %s", exc)
+    finally:
+        result.api_calls = client.calls_made
+    return morning_state_for(conn, day), result
 
 
 # --- entry points ---------------------------------------------------------

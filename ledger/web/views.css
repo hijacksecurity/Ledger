@@ -1467,6 +1467,9 @@ span.daycell-fig.is-none {
   line-height: 1.45; text-wrap: pretty;
 }
 .syncstate .sub { margin: 0; max-width: 74ch; }
+/* Where last night's numbers stand: the line read for, so in ink, not grey. */
+.syncstate .syncstate-morning { color: var(--ink); }
+.syncstate-morning b { font-weight: 650; }
 
 .cmdline {
   display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;

@@ -17,6 +17,9 @@ different kind of figure depending on when it is asked:
     is how a row says how much of the day it covers, and it is the only thing
     that separates a finished day from a stale partial one. A date in the
     past is not enough.
+  * A day is not always 1440 minutes. The day the clocks go back is 1500 and
+    Garmin reports 25 hours of BMR for it; the day they go forward is 1380.
+    `day_minutes` is the length every comparison and scaling here uses.
 
 A past day with no row at all has no burn and no deficit. No baseline is
 substituted — a number that would mislead does not get printed — and the day
@@ -37,7 +40,7 @@ disagree about a day.
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from statistics import median
 from typing import Any
 
@@ -47,9 +50,10 @@ from ledger.report import timeframe as tf
 DEFICIT_TARGET_KEY = "calories_deficit_target_kcal"
 DEFAULT_DEFICIT_TARGET = 500
 
-#: A row covering at least this many minutes describes a finished day. A few
-#: minutes short of 1440 happens when the watch synced just before midnight.
-COMPLETE_MIN = 1435
+#: A row covering at least the day's length less this many minutes describes
+#: a finished day. A few minutes short happens when the watch synced just
+#: before midnight.
+COMPLETE_SLACK_MIN = 5
 #: The baseline is the median BMR of the last 7 finished days when there are
 #: at least 3 of them, else of whatever finished days the last 28 rows hold.
 BASELINE_DAYS = 7
@@ -71,29 +75,56 @@ def deficit_target(conn: sqlite3.Connection) -> tuple[int, bool, str | None]:
     return int(float(row["value"])), False, row["updated_at"]
 
 
+def day_minutes(day: str, tz: tzinfo | None = None) -> int:
+    """How long a local calendar day is: 1440 minutes, except on the two days
+    a year the clocks change — 1380 in spring, 1500 in autumn.
+
+    Garmin's day is the wearer's local day, and on the long one it reports 25
+    hours of BMR. `tz` defaults to the machine's own zone (the container's
+    TZ). The subtraction is done in UTC: two times in one zone subtract as
+    wall-clock times, which would make every day 1440 minutes.
+    """
+    d = date.fromisoformat(day)
+    n = d + timedelta(days=1)
+    if tz is None:
+        start = datetime(d.year, d.month, d.day).astimezone()
+        end = datetime(n.year, n.month, n.day).astimezone()
+    else:
+        start = datetime(d.year, d.month, d.day, tzinfo=tz)
+        end = datetime(n.year, n.month, n.day, tzinfo=tz)
+    return round((end.astimezone(UTC) - start.astimezone(UTC)).total_seconds() / 60)
+
+
 def is_complete(row: sqlite3.Row | dict[str, Any] | None, day: str, today: str) -> bool:
     """Whether a row describes the whole day.
 
-    `day_elapsed_min` decides. A row that carries calories but no elapsed
-    figure predates the column, and for one of those the date has to do.
+    `day_elapsed_min` decides, against the length of that day — not 1440,
+    because the day the clocks go back is 1500 minutes long and the day they
+    go forward 1380. A row that carries calories but no elapsed figure
+    predates the column, and for one of those the date has to do.
     """
     if row is None:
         return False
     elapsed = row["day_elapsed_min"]
     if elapsed is not None:
-        return elapsed >= COMPLETE_MIN
+        return elapsed >= day_minutes(day) - COMPLETE_SLACK_MIN
     return row["calories_total"] is not None and day < today
 
 
 def baseline_bmr(conn: sqlite3.Connection, today: str) -> tuple[int | None, str | None]:
-    """The full-day BMR for an unfinished day, from the wearer's own finished days."""
+    """The BMR of a 24-hour day, from the wearer's own finished days.
+
+    Each day's BMR is put on 24 hours first, so the 25-hour day in autumn
+    does not lift the median. `burn_for` scales it back to the day it is for.
+    """
     rows = [r for r in q.metric_rows_with_bmr(conn, today, BASELINE_LOOKBACK)
             if is_complete(r, r["date"], today)]
     if not rows:
         return None, None
     recent = rows[:BASELINE_DAYS]
     chosen = recent if len(recent) >= BASELINE_MIN_DAYS else rows
-    value = round(median(int(r["calories_bmr"]) for r in chosen))
+    value = round(median(int(r["calories_bmr"]) * 1440 / day_minutes(r["date"])
+                         for r in chosen))
     plural = "s" if len(chosen) != 1 else ""
     return value, f"median of {len(chosen)} finished day{plural}"
 
@@ -152,11 +183,14 @@ def burn_for(
 
     active = (row["calories_active"] if row is not None else None) or 0
     so_far = row["calories_total"] if row is not None else None
+    length = day_minutes(day)
     if baseline is not None:
-        bmr, source, note = baseline, "baseline", baseline_note
+        bmr, source, note = round(baseline * length / 1440), "baseline", baseline_note
+        if length != 1440:
+            note = f"{note}, scaled to a {length // 60}-hour day"
     elif (row is not None and row["calories_bmr"] is not None
           and row["day_elapsed_min"] is not None and row["day_elapsed_min"] >= 60):
-        bmr = round(row["calories_bmr"] * 1440 / row["day_elapsed_min"])
+        bmr = round(row["calories_bmr"] * length / row["day_elapsed_min"])
         source = "extrapolated"
         note = f"{row['calories_bmr']:,} over {row['day_elapsed_min']} min, scaled to the day"
     else:

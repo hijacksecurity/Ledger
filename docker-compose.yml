@@ -88,9 +88,10 @@ services:
       retries: 3
       start_period: 10s
 
-  # Nightly: sync the trailing 3 days, then back up. A plain sleep-until-the-hour
-  # loop, not cron — no extra binary, and logs go to stdout where
-  # `docker compose logs` can find them.
+  # Nightly: sync the trailing 3 days, then back up. Mornings: pull last night's
+  # sleep, HRV and readiness once the watch has uploaded them. A plain sleep
+  # loop on the quarter hour, not cron — no extra binary, and logs go to
+  # stdout where `docker compose logs` can find them.
   cron:
     <<: *common
     container_name: ledger-cron

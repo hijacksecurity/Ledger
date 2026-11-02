@@ -3,6 +3,7 @@
     ledger init                       apply migrations
     ledger garmin-login               one-time interactive Garmin auth
     ledger sync [--days 3]            nightly incremental sync
+    ledger sync-morning               last night's sleep, HRV, readiness once in
     ledger backfill --start --end     historical import, 30-day chunks
     ledger add [FILE]                 bulk-enter notebook lifts (stdin if no file)
     ledger rpe SESSION_ID VALUE       attach a session RPE after the fact
@@ -219,6 +220,30 @@ def cmd_sync(args: argparse.Namespace, cfg: Config) -> int:
     return 1 if result.errors else 0
 
 
+def cmd_sync_morning(args: argparse.Namespace, cfg: Config) -> int:
+    """One quarter-hour of the morning pull. The cron sidecar decides when."""
+    from ledger.garmin.client import GarminAuthError
+    from ledger.garmin.sync import morning_state_for, sync_morning
+
+    conn = open_db(cfg.db_path)
+    today = date.today().isoformat()
+    if morning_state_for(conn, today) == "settled":
+        print(f"morning: {today} settled, nothing to pull")
+        return 0
+    client = _client(cfg)
+    try:
+        client.resume()
+    except GarminAuthError as exc:
+        print(f"auth failed: {exc}", file=sys.stderr)
+        q.log_sync(conn, "login", "error", None, str(exc))
+        return 1
+    state, result = sync_morning(conn, client)
+    print(f"morning: {today} {state} · {result.api_calls} API calls")
+    for err in result.errors:
+        print(f"  ! {err}", file=sys.stderr)
+    return 1 if result.errors else 0
+
+
 def cmd_backfill(args: argparse.Namespace, cfg: Config) -> int:
     from ledger.garmin.client import GarminAuthError
     from ledger.garmin.sync import backfill
@@ -412,6 +437,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("sync", help="incremental Garmin sync")
     p.add_argument("--days", type=int, default=3, help="trailing days to fetch")
     p.set_defaults(fn=cmd_sync)
+
+    p = sub.add_parser("sync-morning",
+                       help="pull last night's sleep, HRV and readiness once the watch has them")
+    p.set_defaults(fn=cmd_sync_morning)
 
     p = sub.add_parser("backfill", help="historical Garmin import")
     p.add_argument("--allow-overlap", action="store_true",

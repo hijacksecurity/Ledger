@@ -249,3 +249,73 @@ def test_the_window_is_filled_day_by_day_and_labelled(conn):
     assert len(out["days"]) == 7
     assert out["timeframe"]["label"].startswith("last 7 days")
     assert out["days"][-1]["weekday"] == "Fri"
+
+
+# --- the days the clocks change ----------------------------------------------
+#
+# Garmin's day is the wearer's local day. The day the clocks go back is 25
+# hours and Garmin reports 25 hours of BMR for it; a check against 1440 once
+# left that finished day reading as unfinished, with a baseline swapped in
+# for the watch's own figure. `day_minutes` is patched so these run the same
+# on any machine's time zone.
+
+LONG_DAY = "2026-03-19"  # standing in for the day the clocks go back
+
+
+def _long_day(monkeypatch, day=LONG_DAY, minutes=1500):
+    monkeypatch.setattr(calories, "day_minutes",
+                        lambda d, tz=None: minutes if d == day else 1440)
+
+
+def test_the_25_hour_day_is_finished_at_1500_minutes(conn, monkeypatch):
+    _long_day(monkeypatch)
+    _finished_days(conn, n=7, start_back=2)
+    q.upsert_metric_daily(conn, LONG_DAY, calories_bmr=2270, calories_active=640,
+                          calories_total=2910, day_elapsed_min=1500)
+    d = _day(conn, LONG_DAY)
+    assert d["status"] == "complete"
+    assert d["burn"]["source"] == "garmin"
+    assert d["burn"]["total"] == 2910
+
+
+def test_a_24_hour_row_on_the_25_hour_day_is_still_unfinished(conn, monkeypatch):
+    """A pull at 23:00 on the long day covers 1380 of its 1500 minutes."""
+    _long_day(monkeypatch)
+    _finished_days(conn, n=7, start_back=2)
+    q.upsert_metric_daily(conn, LONG_DAY, calories_bmr=2180, calories_active=640,
+                          calories_total=2820, day_elapsed_min=1440)
+    assert _day(conn, LONG_DAY)["status"] == "partial"
+
+
+def test_the_baseline_puts_the_long_day_on_24_hours(conn, monkeypatch):
+    _long_day(monkeypatch, day="2026-03-17")
+    for i, day in enumerate(("2026-03-19", "2026-03-18", "2026-03-17")):
+        bmr = 2400 if day == "2026-03-17" else 2200 + i
+        q.upsert_metric_daily(conn, day, calories_bmr=bmr, calories_active=500,
+                              calories_total=bmr + 500,
+                              day_elapsed_min=calories.day_minutes(day))
+    value, note = calories.baseline_bmr(conn, TODAY)
+    # 2400 over 25 hours is 2304 over 24; the median of 2200, 2201, 2304.
+    assert value == 2201
+    assert note == "median of 3 finished days"
+
+
+def test_today_on_the_long_day_scales_the_baseline_to_25_hours(conn, monkeypatch):
+    _long_day(monkeypatch, day=TODAY)
+    _finished_days(conn, n=7, bmr=2160)
+    q.upsert_metric_daily(conn, TODAY, calories_bmr=1000, calories_active=300,
+                          calories_total=1300, day_elapsed_min=600)
+    b = _day(conn)["burn"]
+    assert b["bmr"] == round(calories.baseline_bmr(conn, TODAY)[0] * 1500 / 1440)
+    assert b["baseline_note"].endswith("scaled to a 25-hour day")
+
+
+def test_day_minutes_in_a_zone_that_changes_its_clocks():
+    zoneinfo = __import__("pytest").importorskip("zoneinfo")
+    try:
+        tz = zoneinfo.ZoneInfo("America/New_York")
+    except zoneinfo.ZoneInfoNotFoundError:
+        __import__("pytest").skip("no tz database on this machine")
+    assert calories.day_minutes("2026-11-01", tz) == 1500
+    assert calories.day_minutes("2026-11-02", tz) == 1440
+    assert calories.day_minutes("2027-03-14", tz) == 1380
