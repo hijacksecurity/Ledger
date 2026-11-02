@@ -33,7 +33,9 @@ from ledger.db import queries as q
 from ledger.db.schema import connect, open_db, transaction
 from ledger.entry import VALID_KINDS
 from ledger.garmin import status
-from ledger.report import dashboard, habits, history, plan, ramp, timeframe, views, weekly
+from ledger.report import (
+    calories, dashboard, habits, history, plan, ramp, timeframe, views, weekly,
+)
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
@@ -879,6 +881,236 @@ def delete_plan_goal(conn: DB) -> dict[str, Any]:
     with transaction(conn):
         q.delete_setting(conn, GOAL_WEIGHT_KEY)
     return {"ok": True, **_goal(conn)}
+
+
+# --- Calories -------------------------------------------------------------
+#
+# Intake typed in, burn from Garmin, the arithmetic done once in
+# `report/calories.py`. Meals are not sessions and never become them: nothing
+# here writes to `session`, so a meal cannot reach the activities-per-week
+# figure or the load scale. See migrations/018_calories.sql.
+
+#: Floor between two on-demand pulls of today's burn, successful or not. The
+#: page asks only when the stored row is older than `calories.STALE_AFTER_S`,
+#: so this is a backstop against a tap-happy thumb, not the pacing rule.
+BURN_MIN_INTERVAL_S = 60
+_burn_refreshing = False
+#: None, not 0.0: a monotonic clock can legitimately read under sixty seconds
+#: shortly after boot, and the first pull must never be refused for it.
+_burn_last_attempt: float | None = None
+
+MEAL_KCAL_MAX = 5000
+MEAL_LABEL_MAX = 40
+DEFICIT_TARGET_MAX = 2000
+
+
+def _calorie_window(from_: str | None, to: str | None) -> tuple[str, str]:
+    """Default to the 28 days ending today. A given end is honoured exactly."""
+    if from_ is None and to is None:
+        today = date.today()
+        return (today - timedelta(days=27)).isoformat(), today.isoformat()
+    start = _iso_or_422(from_, "from") if from_ else None
+    end = _iso_or_422(to, "to") if to else None
+    if start is None:
+        start = (date.fromisoformat(end) - timedelta(days=27)).isoformat()
+    if end is None:
+        end = (date.fromisoformat(start) + timedelta(days=27)).isoformat()
+    if end < start:
+        raise HTTPException(status_code=422, detail="to must not precede from")
+    return start, end
+
+
+def _calorie_day(conn: sqlite3.Connection, day: str) -> dict[str, Any]:
+    return calories.build(conn, day, day)["days"][0]
+
+
+def _day_not_ahead_or_422(day: str) -> str:
+    _iso_or_422(day)
+    if day > date.today().isoformat():
+        raise HTTPException(status_code=422, detail="that day has not happened yet")
+    return day
+
+
+_KCAL_MSG = f"kcal must be a whole number from 1 to {MEAL_KCAL_MAX}"
+
+
+def _kcal_or_422(raw: Any) -> int:
+    if isinstance(raw, bool) or raw is None:
+        raise HTTPException(status_code=422, detail=_KCAL_MSG)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=_KCAL_MSG) from exc
+    if value != int(value) or not 1 <= value <= MEAL_KCAL_MAX:
+        raise HTTPException(status_code=422, detail=_KCAL_MSG)
+    return int(value)
+
+
+def _label_or_422(raw: Any) -> str:
+    label = str(raw or "").strip()
+    if len(label) > MEAL_LABEL_MAX:
+        raise HTTPException(
+            status_code=422, detail=f"label must be {MEAL_LABEL_MAX} characters or fewer"
+        )
+    return label
+
+
+def _meal_or_404(conn: sqlite3.Connection, meal_id: int) -> sqlite3.Row:
+    row = q.meal_by_id(conn, meal_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"no meal {meal_id}")
+    return row
+
+
+def _calorie_settings(conn: sqlite3.Connection) -> dict[str, Any]:
+    kcal, is_default, updated_at = calories.deficit_target(conn)
+    return {"deficit_target_kcal": kcal, "is_default": is_default, "updated_at": updated_at}
+
+
+@app.get("/api/calories/settings")
+def calorie_settings(conn: DB) -> dict[str, Any]:
+    """The daily deficit target in kcal. 500 until one is set.
+
+    Declared before `/api/calories/{day}/...` so "settings" is never read as
+    a date.
+    """
+    return _calorie_settings(conn)
+
+
+@app.put("/api/calories/settings")
+def put_calorie_settings(payload: dict[str, Any], conn: DB) -> dict[str, Any]:
+    """`{"deficit_target_kcal": 500}`; null goes back to the default."""
+    if "deficit_target_kcal" not in payload:
+        raise HTTPException(status_code=422, detail="deficit_target_kcal is required")
+    raw = payload["deficit_target_kcal"]
+    with transaction(conn):
+        if raw is None:
+            q.delete_setting(conn, calories.DEFICIT_TARGET_KEY)
+            return {"ok": True, **_calorie_settings(conn)}
+        try:
+            value = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422, detail="deficit_target_kcal must be a number"
+            ) from exc
+        if value != int(value) or not 0 <= value <= DEFICIT_TARGET_MAX:
+            raise HTTPException(
+                status_code=422,
+                detail=f"deficit_target_kcal must be a whole number from 0 to {DEFICIT_TARGET_MAX}",
+            )
+        q.set_setting(conn, calories.DEFICIT_TARGET_KEY, str(int(value)))
+    return {"ok": True, **_calorie_settings(conn)}
+
+
+def _pull_burn(conn: sqlite3.Connection, day: str) -> list[str]:
+    """One paced call to get_stats_and_body for one day, written through the
+    same path the nightly uses. Returns the sync's error strings."""
+    from ledger.garmin.client import GarminClient
+    from ledger.garmin.sync import SyncResult, sync_metrics_for_day
+
+    client = GarminClient(cfg.garmin_token_dir, call_delay_s=cfg.sync_call_delay_s)
+    client.resume()
+    result = SyncResult()
+    sync_metrics_for_day(conn, client, day, result, only=frozenset({"get_stats_and_body"}))
+    return result.errors
+
+
+@app.post("/api/calories/refresh")
+def refresh_burn(conn: DB, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Pull today's burn from Garmin now, and return the day rebuilt.
+
+    Synchronous: it is one call and takes a few seconds, and the page wants
+    the figure back rather than a job to poll. One in flight at a time, never
+    while a full sync runs, and never twice inside `BURN_MIN_INTERVAL_S`.
+    """
+    global _burn_refreshing, _burn_last_attempt
+    from ledger.garmin.client import GarminAuthError, GarminRateLimited
+
+    day = (payload or {}).get("day") or date.today().isoformat()
+    _day_not_ahead_or_422(day)
+
+    if _sync_running or _burn_refreshing:
+        raise HTTPException(status_code=409, detail="a Garmin sync is already running")
+    if not status.tokens_present(cfg.garmin_token_dir):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Garmin has never been authenticated. Run "
+                "`docker compose run --rm cli ledger garmin-login` once — it is "
+                "interactive and may ask for an MFA code."
+            ),
+        )
+    now = time.monotonic()
+    if _burn_last_attempt is not None and now - _burn_last_attempt < BURN_MIN_INTERVAL_S:
+        raise HTTPException(
+            status_code=429,
+            detail=f"pulled {int(now - _burn_last_attempt)} s ago; wait a minute",
+        )
+
+    _burn_refreshing = True
+    _burn_last_attempt = now
+    try:
+        errors = _pull_burn(conn, day)
+    except GarminAuthError as exc:
+        raise HTTPException(status_code=409, detail=f"Garmin login failed: {exc}") from exc
+    except GarminRateLimited as exc:
+        raise HTTPException(status_code=503, detail=f"Garmin is rate limiting: {exc}") from exc
+    finally:
+        _burn_refreshing = False
+    return {"ok": True, "refreshed": not errors, "day": _calorie_day(conn, day), "errors": errors}
+
+
+@app.get("/api/calories")
+def get_calories(
+    conn: DB,
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+) -> dict[str, Any]:
+    """Every day in the window: meals, intake, burn, deficit, the arithmetic."""
+    start, end = _calorie_window(from_, to)
+    return calories.build(conn, start, end)
+
+
+@app.post("/api/calories/{day}/meals")
+def add_meal(day: str, payload: dict[str, Any], conn: DB) -> dict[str, Any]:
+    """`{"kcal": 700, "label": "breakfast"}`. The day comes back rebuilt."""
+    _day_not_ahead_or_422(day)
+    kcal = _kcal_or_422(payload.get("kcal"))
+    label = _label_or_422(payload.get("label"))
+    with transaction(conn):
+        meal_id = q.add_meal(conn, day, kcal, label)
+    day_out = _calorie_day(conn, day)
+    meal = next(m for m in day_out["meals"] if m["id"] == meal_id)
+    return {"ok": True, "meal": meal, "day": day_out}
+
+
+@app.patch("/api/meals/{meal_id}")
+def edit_meal(meal_id: int, payload: dict[str, Any], conn: DB) -> dict[str, Any]:
+    """Change the number, the label, or the day a meal belongs to."""
+    row = _meal_or_404(conn, meal_id)
+    fields: dict[str, Any] = {}
+    if "kcal" in payload:
+        fields["kcal"] = _kcal_or_422(payload["kcal"])
+    if "label" in payload:
+        fields["label"] = _label_or_422(payload["label"])
+    if "date" in payload:
+        fields["date"] = _day_not_ahead_or_422(str(payload["date"] or ""))
+    if not fields:
+        raise HTTPException(status_code=422, detail="nothing to change")
+    with transaction(conn):
+        q.update_meal(conn, meal_id, **fields)
+    day = fields.get("date", row["date"])
+    day_out = _calorie_day(conn, day)
+    meal = next(m for m in day_out["meals"] if m["id"] == meal_id)
+    return {"ok": True, "meal": meal, "day": day_out}
+
+
+@app.delete("/api/meals/{meal_id}")
+def delete_meal(meal_id: int, conn: DB) -> dict[str, Any]:
+    row = _meal_or_404(conn, meal_id)
+    with transaction(conn):
+        n = q.delete_meal(conn, meal_id)
+    return {"ok": True, "deleted": n, "day": _calorie_day(conn, row["date"])}
 
 
 #: How old the stored leagues may get before a plain GET refreshes them behind

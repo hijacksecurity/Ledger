@@ -2772,3 +2772,240 @@ svg.plot text.reflabel { fill: var(--ink); font-size: 12px; font-weight: 700; le
 .rc-findings li.has-icon { grid-template-columns: 18px 1fr; }
 .rc-findings li.has-icon > i { width: 18px; height: 18px; border-radius: 0; background: none !important; border: 0 !important; margin-top: .05rem; color: var(--tone-ink, var(--ink-3)); }
 .rc-findings li.has-icon > i svg { width: 18px; height: 18px; }
+
+/* ══ calories ════════════════════════════════════════════════════════════ */
+
+/* Read at arm's length. The standing against the target takes the
+   Scoreboard's five tones (`.tone-*` set `--tone` / `--tone-ink` above);
+   the word is printed beside every tinted thing, and nothing else on the
+   page carries a hue it has not earned. Meal hues are the habit slots:
+   colour there means *which meal*. */
+
+/* ── the week strip ── */
+.calweek-host { min-height: 56px; }
+.calweek {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .4rem;
+  padding: .1rem 0 .4rem; max-width: 40rem;
+}
+/* Inside a padded card on a phone the cells came out 39px wide; a smaller
+   gap gives them the 40 a thumb needs. */
+.calw .calweek { gap: .25rem; }
+/* No colour defaults on the cell itself: this rule sits later in the file
+   than `.tone-strong` and friends, so defaults here won the cascade and
+   every cell painted grey while carrying the right class. `.tone-none`
+   supplies the grey for a cell with nothing to say. */
+.calweek-cell {
+  position: relative; display: grid; justify-items: center; gap: .1rem;
+  padding: .45rem .2rem .55rem; min-height: 3.4rem;
+  border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--tone) 26%, var(--surface));
+  border-color: color-mix(in srgb, var(--tone) 55%, var(--line-2));
+  color: var(--ink); font: inherit; cursor: default; text-align: center;
+  transition: background var(--dur), transform var(--dur);
+}
+button.calweek-cell { cursor: pointer; }
+button.calweek-cell:hover { transform: translateY(-1px); }
+.calweek-cell.is-empty { background: var(--surface); border-color: var(--line-2); }
+.calweek-cell.is-ahead { opacity: .45; border-style: dashed; }
+.calweek-cell.is-today { border-color: var(--ink); }
+.calweek-cell.is-current { box-shadow: 0 0 0 2px var(--ink); }
+/* `--ink` on a tinted cell: `--ink-3` measured 3.2:1 on the amber wash. */
+.calweek-dow { font-size: var(--t-xs); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); font-weight: 600; }
+.calweek-cell.is-empty .calweek-dow { color: var(--ink-2); }
+.calweek-n {
+  font-size: var(--t-sm); font-weight: 700; color: var(--tone-ink); line-height: 1.1; min-height: 1.1em;
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+}
+.calweek-cell.is-empty .calweek-n { color: var(--ink-3); font-weight: 500; }
+.calweek-cell > i {
+  position: absolute; left: .5rem; right: .5rem; bottom: .3rem; height: 3px; border-radius: 2px;
+  background: var(--tone);
+}
+.calweek-cell.is-empty > i { background: transparent; }
+/* One line, lowercase and unspaced: in a 41px Week-page cell the spaced
+   capitals wrapped onto two lines and made Sunday taller than the rest. */
+.calweek-est {
+  font-size: .66rem; line-height: 1; white-space: nowrap;
+  color: var(--ink-2); font-weight: 600; margin-top: -.05rem;
+}
+/* `display` set outright: an inline <i> with a width and a height is a
+   zero-size box, which is how a key once rendered as a bare list of words. */
+.calkey li > i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--tone); }
+.calkey-note { color: var(--ink-3); flex-basis: 100%; }
+/* The key: three swatches and the two arrows, one quiet line. */
+.calkey {
+  list-style: none; margin: 0; padding: .1rem 0 .2rem; display: flex; flex-wrap: wrap; gap: .3rem 1rem;
+  font-size: var(--t-xs); color: var(--ink-3);
+}
+.calkey li { display: inline-flex; align-items: center; gap: .35rem; }
+.calpill-rel { font-size: var(--t-xs); letter-spacing: .06em; text-transform: uppercase; color: var(--tone-ink); font-weight: 600; }
+
+/* ── the hero ── */
+.calhero { align-items: center; }
+.calfig { color: var(--tone-ink, var(--ink)); }
+.calfig.tone-none { color: var(--ink); }
+.calhero-pill { margin-top: .7rem; }
+.calpill {
+  display: inline-flex; align-items: center; gap: .45rem;
+  padding: .3rem .7rem .3rem .55rem; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tone) 55%, var(--line));
+  background: color-mix(in srgb, var(--tone) 12%, var(--surface));
+  font-size: var(--t-sm); color: var(--ink);
+}
+.calpill-arrow { color: var(--tone-ink); font-weight: 700; font-size: 1.05em; line-height: 1; }
+.calpill b { font-weight: 640; font-variant-numeric: tabular-nums; color: var(--tone-ink); }
+.calpill-sep { color: var(--ink-3); }
+.calpill-rel.is-quiet { color: var(--ink-2); }
+.calpill.tone-none b, .calpill.tone-none .calpill-rel, .calpill.tone-none .calpill-arrow { color: var(--ink-2); }
+.calpill-est {
+  font-style: normal; font-size: var(--t-xs); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 0 .3rem;
+}
+
+/* ── the fuel bar ── */
+.calbar { position: relative; padding-top: .35rem; }
+.calbar-track {
+  height: 16px; border-radius: 8px; overflow: hidden; position: relative; display: flex;
+  /* Ink at a tenth, not --surface-2: on paper that measured 242 against a
+     244 page and the empty half of the bar disappeared. */
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.calbar-seg { height: 100%; background: var(--tone); transition: width .6s var(--ease); }
+.calbar-seg:first-child { border-radius: 8px 0 0 8px; }
+.calbar-seg:last-child { border-radius: 0 8px 8px 0; }
+.calbar-seg:only-child { border-radius: 8px; }
+.calbar-tick {
+  position: absolute; top: .05rem; width: 3px; height: calc(16px + .6rem);
+  margin-left: -1.5px; background: var(--ink); border-radius: 2px;
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+.calbar-ends {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem .8rem; margin-top: .7rem;
+}
+.calbar-ends > .calpair:nth-child(2) { justify-self: center; }
+.calbar-ends > .calpair:nth-child(3) { justify-self: end; }
+/* Icon and figure on one line, the word directly under the figure. */
+.calpair {
+  display: grid; grid-template-columns: auto auto; column-gap: .35rem; align-items: center;
+  justify-content: start; color: var(--ink-2); min-width: 0;
+}
+.calpair-w { grid-column: 2; }
+.calpair-i {
+  width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; flex: none; align-self: center; color: var(--ink-3);
+}
+.calpair b { font-size: var(--t-md); font-weight: 640; color: var(--ink); font-variant-numeric: tabular-nums; }
+.calpair-w { font-size: var(--t-xs); color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; }
+.calbar.is-compact .calbar-track { height: 10px; border-radius: 5px; }
+.calbar.is-compact .calbar-tick { height: calc(10px + .5rem); }
+.calbar.is-compact .calbar-ends { margin-top: .45rem; }
+.calbar-split { margin-top: .55rem; padding-top: .55rem; border-top: 1px solid var(--line-2); }
+.calbar-split > .calpair:nth-child(2) { justify-self: center; }
+.calbar-split .calpair b { color: var(--ink-2); }
+.calbar.is-compact .calpair b { font-size: var(--t-sm); }
+
+/* ── stamp row ── */
+.calstamp { margin-top: .2rem; }
+.calstamp-row { display: flex; align-items: center; gap: .4rem; font-size: var(--t-xs); color: var(--ink-3); min-height: 1.75rem; }
+.calstamp-btn { margin-left: -.35rem; flex: none; }
+.calstamp-btn.is-busy svg { animation: spin 1s linear infinite; }
+.calstamp-i { width: .85rem; height: .85rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.calsum-btn { margin-left: auto; font-weight: 700; min-width: 2.5rem; min-height: 2.5rem; }
+.calsum { margin-top: .3rem; font-size: var(--t-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── adding ── */
+.mealadd { display: grid; gap: .7rem; }
+.mealadd-row { display: flex; gap: .6rem; align-items: stretch; }
+.mealadd-kcal {
+  flex: 1 1 8rem; min-width: 0; min-height: 3.25rem;
+  font-size: 1.35rem; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums;
+}
+.mealadd-btn { flex: 0 0 auto; min-width: 6.5rem; }
+.mealadd-chips .chip { min-height: 2.5rem; padding-inline: .8rem; gap: .45rem; }
+.mealdot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+.calhint { display: flex; align-items: center; gap: .3rem; font-size: var(--t-xs); color: var(--ink-3); }
+
+/* ── the list ── */
+.meals { list-style: none; display: grid; gap: .1rem; margin: 0; padding: 0; }
+.meal-row {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .55rem .2rem; border-bottom: 1px solid var(--line-2);
+}
+.meal-row:last-child { border-bottom: 0; }
+.meal-label { flex: 1 1 auto; min-width: 0; font-weight: 560; color: var(--ink); text-transform: capitalize; }
+.meal-kcal { font-weight: 640; font-variant-numeric: tabular-nums; color: var(--ink); margin-right: .3rem; }
+.meal-row.is-pending { opacity: .55; }
+.meal-row.is-editing { border-bottom-color: transparent; }
+.meal-row .is-armed {
+  width: auto; padding: 0 .55rem; color: var(--critical);
+  font-size: var(--t-xs); font-weight: 600;
+  border: 1px solid color-mix(in srgb, var(--critical) 40%, var(--line)); border-radius: 999px;
+}
+.meal-editor { list-style: none; }
+.mealedit { margin-top: 0; margin-bottom: .5rem; }
+.mealedit-label { flex: 1 1 9rem; min-width: 0; }
+.meals-total { display: flex; align-items: baseline; gap: .35rem; margin-top: .6rem; justify-content: flex-end; }
+.meals-total-k { color: var(--ink-3); font-weight: 700; }
+.meals-total b { font-size: var(--t-lg); font-weight: 640; }
+.meals-total-u { font-size: var(--t-xs); color: var(--ink-3); }
+.calempty { display: flex; align-items: center; gap: .2rem; }
+
+/* ── over time ── */
+.calcount { margin-top: .5rem; font-size: var(--t-xs); color: var(--ink-3); }
+.calcount b { color: var(--ink-2); }
+
+/* ── bodyweight ── */
+.bwhero {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: .8rem 1.2rem; flex-wrap: wrap;
+  margin-bottom: .9rem;
+}
+.bwhero-fig { display: flex; align-items: baseline; gap: .45rem; }
+.bwhero-i {
+  width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; align-self: center; color: var(--weight);
+}
+.bwhero-n {
+  font-size: clamp(2.6rem, 8vw, 3.4rem); line-height: .9; font-weight: 600; letter-spacing: -.045em;
+  color: var(--tone-ink, var(--ink)); font-variant-numeric: lining-nums proportional-nums;
+}
+.bwhero.tone-none .bwhero-n { color: var(--ink); }
+.bwhero-u { font-size: var(--t-sm); color: var(--ink-3); letter-spacing: .1em; text-transform: uppercase; }
+.bwhero-date { display: flex; align-items: center; gap: .2rem; margin-top: .35rem; font-size: var(--t-xs); color: var(--ink-3); }
+.bwhero .calpill.tone-none { border-color: var(--line); }
+.bwhero .calpill.tone-none .calpill-arrow, .bwhero .calpill.tone-none b { color: var(--ink-2); }
+/* The weight line gets a fuller wash than the app's default tenth: it is the
+   one line on the panel and the hue is doing the work the labels used to. */
+.fig-weight .area {
+  opacity: .34;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
+}
+/* No ✓ on these: the Scoreboard's tick means a target was hit, and a pace
+   has no target. The colour already says which way it is going. */
+.bwstat.tone-strong .stat-label::after { content: none; }
+.fig-weight .pt { r: 3.4px; }
+.bwgoal { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-top: .8rem; }
+.bwgoal-k { font-size: var(--t-xs); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.bwgoal .hbeditor-input { width: 5.5rem; }
+
+/* ── settings ── */
+.caltarget { align-items: center; }
+.caltarget-reset { margin-top: .6rem; }
+
+/* ── the Week page widget ── */
+.calw { display: grid; gap: .9rem; }
+.calw-today {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .5rem 1.4rem; align-items: center;
+  text-decoration: none; color: inherit; padding: .2rem 0;
+}
+@media (max-width: 560px) { .calw-today { grid-template-columns: 1fr; } }
+.calw-fig { display: flex; align-items: baseline; gap: .5rem; }
+.calw-n {
+  font-size: clamp(2.6rem, 8vw, 3.6rem); line-height: .9; font-weight: 600; letter-spacing: -.045em;
+  color: var(--tone-ink, var(--ink)); font-variant-numeric: lining-nums proportional-nums;
+}
+.calw-n.tone-none { color: var(--ink); }
+.calw-u { display: flex; flex-direction: column; font-size: var(--t-xs); color: var(--ink-3); letter-spacing: .1em; text-transform: uppercase; line-height: 1.3; }
+.calw-side { display: grid; gap: .55rem; min-width: 0; justify-items: start; }
+.calw-side .calbar { justify-self: stretch; width: 100%; }

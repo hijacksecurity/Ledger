@@ -197,6 +197,9 @@
   --rhr:     #e07a9b;
   --stress:  #e8a33d;
   --battery: #8fc34a;
+  /* Bodyweight. Not a modality and not a nightly number, so it gets its own
+     hue rather than borrowing one; sky on charcoal, deep sea on paper. */
+  --weight:  #6cc4e8;
 
   /* Lifted off the graphic tone. `#e5534b` measured 4.35:1 as 13px digits on a
      deload row's surface-2 ground — the assumption that "on dark the graphic
@@ -298,6 +301,7 @@
   --rhr:     #b8406a;
   --stress:  #a86a00;
   --battery: #4f8a12;
+  --weight:  #1e78a8;
 
   --tone-poor-ink:   #b3211f;
   --tone-thin-ink:   #a8480a;

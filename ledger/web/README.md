@@ -26,14 +26,15 @@ sw.js           offline shell, network-first
 
 ## Information architecture
 
-Nine destinations. Two of them hold peer pages behind one tab row, so the top
-level grows only when a page answers a genuinely new question rather than every
-time a modality does. No modal dialogs anywhere.
+Eleven destinations. Two of them hold peer pages behind one tab row, so the
+top level grows only when a page answers a genuinely new question rather than
+every time a modality does. No modal dialogs anywhere.
 
 | Route | View | Answers |
 |---|---|---|
 | `#/week` `#/week/YYYY-MM-DD` | **Week** | What happened this week, and how it sits against its own recent history |
 | `#/habits` | **Habits** | Did the small things happen — today, and across the week |
+| `#/calories` `#/calories?date=YYYY-MM-DD` | **Calories** | What went in today against what the watch says went out, and where the day is set to finish |
 | `#/plan` | **Plan** | How far to go next week, and the seven after it |
 | `#/insights` | **Insights** | Everything the record will say about itself |
 | `#/soccer` | **Sports → Soccer** | Record and goal involvement, split by fixture |
@@ -74,12 +75,18 @@ per theme from the validated palette, not the same values dimmed. The toggle
 persists in `localStorage`, is applied inline before first paint so there is no
 flash, and updates `<meta name="theme-color">`.
 
-**The Sports range is one choice, remembered.** Soccer, Running and Lifting
-share the range picked in their filter bar (`ledger.sportsRange` in
-`localStorage`, via `sportsRange()` / `rememberSportsRange()` in `ui.js`):
-12 weeks on one is 12 weeks on the others and on the next visit, instead of
-each page snapping back to its own default. A `range=` in the URL still wins,
-so a shared link lands where it points.
+**A chosen window is remembered, on every page.** Soccer, Running and
+Lifting share one range (`ledger.sportsRange`, via `sportsRange()` /
+`rememberSportsRange()` in `ui.js`); every other page keeps its own choice
+the same way through `rememberedChoice()` / `rememberChoice()` — the Calories
+windows, the Habits and Recovery ranges, the All-time windows and night
+measure, the Calendar grain, the Plan horizon and deload, the Explore metric,
+grain and range. Twelve weeks picked on a page is twelve weeks on the next
+visit instead of the page snapping back to its default. A value in the URL
+still wins, so a shared link lands where it points. Only a *position in
+time* — the week or the day on screen — is not remembered, because the right
+default for those is now. `scripts/conventions.py --check` fails when a view
+gains a window control that forgets.
 
 **Colour is fixed to modality, never to rank.** Soccer is blue on every screen
 whether or not anything else is present, so filtering a series out never
@@ -384,6 +391,78 @@ on the Running page, where the week in progress is marked as such and prints no
 percentage against the week before: part of a week against a whole one is not a
 comparison, and -100% is a calendar artefact dressed as a drop.
 
+**A meal is a number, and the count is no longer kept in a head.** `#/calories`
+exists because the running total of the day was being added up mentally. So
+the page is a figure — the deficit — the arithmetic behind it in one line, one
+bar, and directly under it a field that takes a number and a button that says
+Add. No food database, no macros, no second field that matters. The chips
+(breakfast, snack, lunch, dinner, bedtime, other) are labels, not slots: a day
+can carry two snacks, and whatever is typed over them is kept. A meal is
+hard-deleted when asked, because nothing references it and no total is stored.
+
+**Burn is estimated until midnight, and the page says so three times.**
+Garmin pro-rates the day's BMR to the hours elapsed (at 18:36 it reads about
+three quarters of the full-day figure) while active calories are the running
+total, so neither is the day's burn. The server takes the median BMR of the
+last seven finished days as the full-day baseline and adds the activity so
+far — a floor, not a forecast, and it is marked `est.` under the figure, in
+the arithmetic line and in the note. A finished day uses the watch's own
+total. A past day the watch has nothing for has no deficit: a dash and the
+reason, never a guess. All of it is `report/calories.py`; the page computes
+nothing, and every write repaints from the day the server returns.
+
+**Read at arm's length, without reading.** The first version printed its
+reasoning in sentences and the user asked for icons and keywords instead. So
+the fast path is one number — what is left to eat today, in the colour of
+where the day stands — a pill with the deficit and one word, a bar, and
+three icon-and-figure pairs: eaten, limit, burn. The sum behind it is one
+tap away (Σ). Colour was asked for too, and in plain terms: three colours
+everybody already knows, applied to the server's `standing` — green under
+the limit, amber past the limit but under the burn, red over the burn. The
+bar fills green up to the limit tick and amber beyond it; the hero number is
+what is left to the limit, or `+N` past it; the pill is the deficit with an
+arrow and two words, "↓ 974 below burn" or "↑ 85 over burn" — an arrow and a
+number alone were not understood — and today is tagged `est`. The week's
+seven days sit above the hero as cells named Mon … Sun (never two letters),
+each showing the deficit that day ended on in its colour — green for the
+target met, amber for a smaller deficit, red for a day that ate more than it
+burned — with a key underneath that names the target in kcal. Today's cell
+says "so far" under its figure, because the day is not over; a dashed rule
+was tried for that first and had to be asked about. Tapping a cell opens
+that day. The history chart is
+columns in the same three colours, the size of each day's deficit, with
+over-days drawn as the overshoot in red. The burn is split under the bar
+into base and active, because the user wanted to see both. An unlogged day
+is not a zero: it is a gap, and it is left out of both rolling means, which
+count finished days with at least one meal and end yesterday.
+
+**Bodyweight on that page is a dashboard, not a figure with numbers on it.**
+The first version printed the high, the low and the endpoint on the line and
+they collided, and the figures picked for the tiles did not say what they
+measured. Now the latest reading leads, large, in green or red for which way
+it is going toward the goal — and untinted while no goal is set, because a
+direction is only good or bad against one; the change over the window is an
+arrow pill that names its start date; three
+tiles carry the figures with icons — pace in lb/wk from a least-squares slope
+over the window, to-goal with the month this pace gets there, and the
+window's low and high — and the line is left clean: sky blue, every weigh-in
+ringed, a faded wash under it, the goal dashed in the gutter. The goal is set
+right there, under the chart. All the sums are `weight.js`, shared with the
+All-time page, which keeps its labelled flagship.
+
+**The Week page carries the same widget, built by the same code.** Left to
+eat today, the pill, a compact bar and the seven cells — all from
+`calories.js`, so a day cannot read differently on the two pages. It sits
+with Habits and Recovery because it is about today.
+
+**Today's burn is pulled when the page opens, not on a timer.** Only when the
+stored row is older than ten minutes, one call, one in flight, a sixty-second
+floor on the server, and never while the nightly sync is running. The stamp
+beside the bar says when Garmin last answered, and the ⟳ next to it asks
+again. The bodyweight panel beneath draws the same weigh-ins as the All-time
+page through one shared spec (`weight.js`), with the goal weight from the
+Plan page as a dashed reference line.
+
 **Habits are kept in one tap, and the box fills rather than renaming itself.**
 The decision was that a habit tracker should take one tap and no reading, so
 the control is a checkbox: empty or full, legible at arm's length, no word to
@@ -653,7 +732,7 @@ claims clients immediately. Navigations fall back to the cached shell so any
 route still opens with no network.
 
 **Bump `VERSION` in `sw.js` on every shell change.** It is currently
-`ledger-v129`, and `SHELL` lists every module — a new `view-*.js` has to be
+`ledger-v147`, and `SHELL` lists every module — a new `view-*.js` has to be
 added there too.
 
 ---
@@ -700,6 +779,26 @@ made of. Different inputs and different scales: compare each against its own
 history, not against the other.
 
 ---
+
+## Conventions, checked
+
+Three things keep a new view honest, in this order, before any file is
+copied into this folder (which the container serves live):
+
+1. `scripts/conventions.py --check` — mechanical: a window control that is
+   not remembered, a module missing from the service-worker shell, a view
+   missing from the QA routes, a panel missing from the data map.
+2. `scripts/qa.py --base http://127.0.0.1:8001` against the working copy —
+   rendering: overflow, contrast, tap targets, words run together.
+3. The `ui-critic` agent (`.claude/agents/ui-critic.md`) — a stranger on a
+   phone: does every number, mark and colour say what it is and which way is
+   good, in both themes, without the source code.
+
+The checklist itself is in `CLAUDE.md` under *Front-end conventions*. Two
+rules there came straight from the user and are not negotiable: day names
+are at least three letters, never two; and a figure never stands bare — it
+carries its unit, an icon or a word, and any colour it wears is explained by
+a key on the same screen.
 
 ## Verification
 

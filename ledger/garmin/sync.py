@@ -20,7 +20,7 @@ import sqlite3
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from ledger.config import Config
@@ -294,6 +294,10 @@ def sync_metrics_for_day(
         values["body_battery_high"] = high
         values["body_battery_low"] = low
         values.update(m.parse_daily_stats(stats))
+        # When the burn figures were pulled. The Calories page decides from
+        # this whether today's row is worth re-reading.
+        if any(k in values for k in ("calories_total", "calories_active", "calories_bmr")):
+            values["calories_fetched_at"] = datetime.now(UTC).isoformat(timespec="seconds")
 
     readiness = None if not wanted("get_training_readiness") else _guarded(
         conn,

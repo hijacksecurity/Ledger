@@ -10,6 +10,7 @@ import {
 import {
   panel, panelError, statStrip, segmented, kindFilter, emptyNote, readout,
   skeletonBlock, kindName, RANGE_PRESETS, resolveRange, subTabs, setTimeframe,
+  rememberedChoice, rememberChoice,
 } from './ui.js';
 import { figure, splitBar } from './charts.js';
 import {
@@ -30,10 +31,12 @@ const FORMATTERS = {
 export function mount(host, route, { setQuery }) {
   const q = route.query;
   const state = {
-    metric: METRICS.some(([m]) => m === q.get('metric')) ? q.get('metric') : 'load',
-    grain: q.get('grain') === 'month' ? 'month' : 'week',
+    /* Metric, grain and range are choices and are remembered; the modality
+       is a filter and starts clear. The URL still wins. */
+    metric: rememberedChoice('ledger.trends.metric', route, 'metric', (v) => METRICS.some(([m]) => m === v), 'load'),
+    grain: rememberedChoice('ledger.trends.grain', route, 'grain', (v) => v === 'week' || v === 'month', 'week'),
     kind: KINDS.includes(q.get('kind')) ? q.get('kind') : null,
-    range: q.get('range') || '52w',
+    range: rememberedChoice('ledger.trends.range', route, 'range', (v) => RANGE_PRESETS.some(([k]) => k === v), '52w'),
   };
   let figs = [];
   let alive = true;
@@ -78,6 +81,7 @@ export function mount(host, route, { setQuery }) {
 
   function update(patch) {
     Object.assign(state, patch);
+    for (const k of ['metric', 'grain', 'range']) if (k in patch) rememberChoice(`ledger.trends.${k}`, patch[k]);
     setQuery({
       metric: state.metric, grain: state.grain,
       kind: state.kind || '', range: state.range,

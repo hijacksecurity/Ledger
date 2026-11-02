@@ -240,3 +240,49 @@ def test_metrics_only_backfill_calls_two_endpoints_and_fills_015_columns(conn, f
     # 016: the personal range travels with the night.
     assert row["hrv_status"] is None  # the fake sends no status
     assert row["sleep_need_min"] is None
+
+
+def test_migration_018_adds_the_meal_table_and_the_burn_columns(conn):
+    import sqlite3
+
+    import pytest
+
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(metric_daily)")}
+    assert {"calories_total", "calories_active", "calories_bmr",
+            "day_elapsed_min", "calories_fetched_at"} <= cols
+    tables = {r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "meal" in tables
+    for bad in (0, 6000):
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO meal (date, label, kcal, created_at, updated_at) "
+                "VALUES ('2026-01-05', 'x', ?, 'now', 'now')", (bad,),
+            )
+
+
+def test_a_metrics_pull_stamps_when_the_burn_was_fetched(conn, fake_client):
+    """The Calories page decides from the stamp whether today is worth
+    re-reading, so it must be set by the same write that sets the figures
+    and left alone by one that does not carry them."""
+    from ledger.garmin.sync import SyncResult, sync_metrics_for_day
+
+    client, api = fake_client(metrics={"get_stats_and_body": {"2026-01-05": {
+        "totalKilocalories": 2892.0, "activeKilocalories": 712.0,
+        "bmrKilocalories": 2180.0, "durationInMilliseconds": 86_400_000,
+    }}})
+    sync_metrics_for_day(conn, client, "2026-01-05", SyncResult(),
+                         only=frozenset({"get_stats_and_body"}))
+    row = conn.execute("SELECT * FROM metric_daily WHERE date='2026-01-05'").fetchone()
+    assert (row["calories_total"], row["calories_active"], row["calories_bmr"],
+            row["day_elapsed_min"]) == (2892, 712, 2180, 1440)
+    stamp = row["calories_fetched_at"]
+    assert stamp
+
+    # A later pull without calories leaves the figures and the stamp alone.
+    client2, _ = fake_client(metrics={"get_stats_and_body": {"2026-01-05": {"totalSteps": 9000}}})
+    sync_metrics_for_day(conn, client2, "2026-01-05", SyncResult(),
+                         only=frozenset({"get_stats_and_body"}))
+    row = conn.execute("SELECT * FROM metric_daily WHERE date='2026-01-05'").fetchone()
+    assert row["calories_total"] == 2892
+    assert row["calories_fetched_at"] == stamp
+    assert row["steps"] == 9000

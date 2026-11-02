@@ -28,6 +28,7 @@ import {
 import {
   panel, panelError, segmented, emptyNote, skeletonBlock, readout,
   resolveRange, dowBadge, kindDot, sectionRule, collapsible, setTimeframe,
+  rememberedChoice, rememberChoice,
 } from './ui.js';
 import { figure, splitBar } from './charts.js';
 import { cached, sessionsIn } from './dataset.js';
@@ -46,7 +47,10 @@ const RANGES = [
 const toneColor = (tone) => (tone ? token(`tone-${tone}`) : null);
 
 export function mount(host, route, { setQuery }) {
-  const state = { range: RANGES.some(([k]) => k === route.query.get('range')) ? route.query.get('range') : '4w' };
+  const state = {
+    range: rememberedChoice('ledger.recovery.range', route, 'range',
+      (v) => RANGES.some(([k]) => k === v), '4w'),
+  };
   let figs = [];
   let alive = true;
   let seq = 0;
@@ -105,7 +109,7 @@ export function mount(host, route, { setQuery }) {
       el('div', { class: 'filter' }, [
         el('span', { class: 'lbl', text: 'Range' }),
         segmented(RANGES, state.range, (v) => {
-          state.range = v; setQuery({ range: v }); buildFilters(); load();
+          state.range = v; rememberChoice('ledger.recovery.range', v); setQuery({ range: v }); buildFilters(); load();
         }, 'Date range for every chart on this page'),
       ]),
     );

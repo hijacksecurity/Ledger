@@ -37,7 +37,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 BASE = "http://127.0.0.1:8000"
 
-ROUTES = ["week", "score", "calendar", "habits", "recovery", "plan", "intent", "insights", "soccer",
+ROUTES = ["week", "score", "calendar", "habits", "calories", "recovery", "plan", "intent", "insights", "soccer",
           "running", "lifting", "trends", "log", "all", "sync", "add"]
 
 VIEWPORTS = [("desktop", 1440, 1000), ("phone", 390, 844)]

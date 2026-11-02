@@ -252,6 +252,37 @@ def test_parse_daily_stats_drops_implausible_values():
     assert parse_daily_stats("not a dict") == {}
 
 
+def test_parse_daily_stats_reads_calories_and_the_elapsed_day():
+    from ledger.garmin.mapping import parse_daily_stats
+
+    # A finished day: the three figures and the full 1440 minutes.
+    out = parse_daily_stats({
+        "totalKilocalories": 2892.0, "activeKilocalories": 712.0,
+        "bmrKilocalories": 2180.0, "durationInMilliseconds": 86_400_000,
+    })
+    assert out == {
+        "calories_total": 2892, "calories_active": 712, "calories_bmr": 2180,
+        "day_elapsed_min": 1440,
+    }
+    # Mid-afternoon: Garmin's pro-rated bmr travels with how far the day got.
+    out = parse_daily_stats({
+        "totalKilocalories": 1740.0, "activeKilocalories": 380.0,
+        "bmrKilocalories": 1360.0, "durationInMilliseconds": 54_000_000,
+    })
+    assert out["day_elapsed_min"] == 900
+    assert out["calories_bmr"] == 1360
+
+
+def test_parse_daily_stats_drops_implausible_calories():
+    from ledger.garmin.mapping import parse_daily_stats
+
+    assert parse_daily_stats({
+        "totalKilocalories": -5, "activeKilocalories": 20_000,
+        "bmrKilocalories": None, "durationInMilliseconds": 0,
+    }) == {}
+    assert parse_daily_stats({"durationInMilliseconds": 90_000_000}) == {}
+
+
 def test_parse_hrv_detail_keeps_status_and_personal_range():
     from ledger.garmin.mapping import parse_hrv_detail
 

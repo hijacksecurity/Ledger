@@ -15,8 +15,10 @@ import {
   panel, panelError, statStrip, emptyNote, skeletonBlock, kindName, readout, segmented, subTabs,
   setTimeframe,
   setTools,
+  rememberedChoice, rememberChoice,
 } from './ui.js';
 import { figure, splitBar, dayGrid, gridScale } from './charts.js';
+import { weighInsWithin, weightFigureSpec, weightDeltaTile } from './weight.js';
 import {
   rolling28, normalizePoints, historyReadout, sessionsIn, lifetimeAveragePerWeek,
   weeklyCounts, bodyweightByMonth, fastingByMonth, monthSpan, weightReadout, metricByMonth, cached,
@@ -36,14 +38,18 @@ const byYear = (points) => points.map((p) => (
 ));
 
 const AVG_RANGES = [['all', 'All time'], ['104', '2 years'], ['52', '52 weeks'], ['26', '26 weeks']];
+const BW_RANGES = [['all', 'All time'], ['104', '2 years'], ['52', '52 weeks'], ['12', '12 weeks']];
 
 export function mount(host, route, { setQuery }) {
   const state = {
-    avgRange: route.query.get('avg') || 'all',
-    bwRange: route.query.get('bw') || 'all',
+    /* Three choices, each remembered across visits; the URL still wins. */
+    avgRange: rememberedChoice('ledger.all.avg', route, 'avg',
+      (v) => AVG_RANGES.some(([k]) => k === v), 'all'),
+    bwRange: rememberedChoice('ledger.all.bw', route, 'bw',
+      (v) => BW_RANGES.some(([k]) => k === v), 'all'),
     unit: getWeightUnit(),
     /* Which of the watch's nightly measures the long view shows. */
-    night: metricOf(route.query.get('night')) ? route.query.get('night') : 'sleep_hours',
+    night: rememberedChoice('ledger.all.night', route, 'night', (v) => !!metricOf(v), 'sleep_hours'),
   };
   let figs = [];
   let nightFigs = [];
@@ -161,7 +167,7 @@ export function mount(host, route, { setQuery }) {
     const m = have.find((x) => x.key === state.night) || have[0];
     setTools(pNights, have.length ? segmented(
       have.map((x) => [x.key, x.label]), m.key,
-      (v) => { state.night = v; setQuery({ night: v }); paintNights(); },
+      (v) => { state.night = v; rememberChoice('ledger.all.night', v); setQuery({ night: v }); paintNights(); },
       'Which nightly measure the long view shows',
     ) : null);
     clear(pNights.body);
@@ -272,7 +278,7 @@ export function mount(host, route, { setQuery }) {
       + `week, divided by the weeks completed. ${avg.length} weeks shown, `
       + `${fmt.dateY(avg[0].key)} to ${fmt.dateY(avg[avg.length - 1].key)}.`;
     setTools(pAvg, segmented(AVG_RANGES, state.avgRange, (v) => {
-      state.avgRange = v; setQuery({ avg: v }); dropFigs(); paintAll();
+      state.avgRange = v; rememberChoice('ledger.all.avg', v); setQuery({ avg: v }); dropFigs(); paintAll();
     }, 'Average window'));
 
     /* Named `lifetime`, not `avg`: `avg` is already the plotted series in
@@ -398,17 +404,12 @@ export function mount(host, route, { setQuery }) {
   function paintWeight() {
     const { h } = data;
     clear(pWeight.body);
-    let bw = (h.bodyweight || []).filter((p) => p.kg != null);
-    if (bw.length < 2) {
+    if ((h.bodyweight || []).filter((p) => p.kg != null).length < 2) {
       pWeight.body.append(emptyNote('No weigh-ins on record.'));
       return;
     }
     const limitWeeks = state.bwRange === 'all' ? null : Number(state.bwRange);
-    if (limitWeeks) {
-      const cutoff = new Date(new Date(`${bw[bw.length - 1].date}T00:00:00`).getTime()
-        - limitWeeks * 7 * 86400000);
-      bw = bw.filter((p) => new Date(`${p.date}T00:00:00`) >= cutoff);
-    }
+    const bw = weighInsWithin(h.bodyweight, limitWeeks);
 
     const u = state.unit;
     const conv = (kg) => inUnit(kg, u);
@@ -417,8 +418,8 @@ export function mount(host, route, { setQuery }) {
     setTools(pWeight, [
       unitCtl(),
       segmented(
-        [['all', 'All time'], ['104', '2 years'], ['52', '52 weeks'], ['12', '12 weeks']],
-        state.bwRange, (v) => { state.bwRange = v; setQuery({ bw: v }); dropFigs(); paintAll(); },
+        BW_RANGES,
+        state.bwRange, (v) => { state.bwRange = v; rememberChoice('ledger.all.bw', v); setQuery({ bw: v }); dropFigs(); paintAll(); },
         'Bodyweight window',
       ),
     ]);
@@ -428,17 +429,7 @@ export function mount(host, route, { setQuery }) {
       `Every weigh-in you logged or synced, as it was read. `
       + `${bw.length} weigh-ins, ${fmt.dateY(bw[0].date)} to ${fmt.dateY(last.date)}. Stored and plotted, never scored.`;
 
-    const deltaTile = (label, weeks) => {
-      const cutoff = new Date(new Date(`${last.date}T00:00:00`).getTime() - weeks * 7 * 86400000);
-      const prior = bw.filter((p) => new Date(`${p.date}T00:00:00`) <= cutoff).pop();
-      if (!prior) return { label, value: '—', note: 'not enough history in range' };
-      /* Reading to reading. Both ends were measured, so the difference is one
-         you could have worked out from two mornings on the scale. */
-      return {
-        label, value: fmt.wholeSigned(conv(last.kg) - conv(prior.kg)), unit: u,
-        note: `from ${fmt.whole(conv(prior.kg))} on ${fmt.dateY(prior.date)}`,
-      };
-    };
+    const deltaTile = (label, weeks) => weightDeltaTile(bw, weeks, u, label);
 
     pWeight.body.append(statStrip([
       {
@@ -454,26 +445,12 @@ export function mount(host, route, { setQuery }) {
 
     const main = el('div', { class: 'fig-primary' });
     pWeight.body.append(main);
-    figs.push(figure(main, {
-      type: 'line',
+    /* The spec is shared with #/calories (`weight.js`), so the two pages
+       cannot draw the same weigh-ins two different ways. */
+    figs.push(figure(main, weightFigureSpec(bw, u, {
       aria: `Bodyweight readings in ${u === 'kg' ? 'kilograms' : 'pounds'}, every weigh-in on record`,
-      height: 300, unit: u, periodLabel: 'Date',
       padLeft: PAD_L, padRight: PAD_R,
-      annotate: 'extremes',
-      /* The readings, and only the readings. A seven-day trend used to run
-         behind them; it was the last smoothed line on the site and the user
-         asked for it to go — what the scale said is the number, and a line
-         the scale never produced beside it reads as a second opinion. The
-         server still publishes `ema`; nothing draws it. */
-      series: [{ key: 'raw', label: 'Weigh-in', color: token('ink-2') }],
-      points: bw.map((p) => ({
-        key: p.date, label: fmt.date(p.date), group: p.date.slice(0, 4),
-        values: { raw: conv(p.kg) },
-        note: `${inUnit(p.kg, u === 'kg' ? 'lb' : 'kg').toFixed(1)} ${u === 'kg' ? 'lb' : 'kg'}`,
-      })),
-      format: (v) => `${v.toFixed(1)}`,
-      formatShort: (v) => v.toFixed(0),
-    }));
+    })));
 
     pWeight.body.append(el('p', { class: 'sub', text:
       'One line, no commentary. The database and Garmin both work in kilograms; the notebook was written in pounds, '

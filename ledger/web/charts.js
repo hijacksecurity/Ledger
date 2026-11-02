@@ -375,7 +375,7 @@ function drawColumns(spec, width, format, formatShort) {
   const refTop = Math.max(
     0,
     ...(spec.bands || []).map((b) => Number(b.to) || 0),
-    ...(spec.guides || []).map((g) => Number(g.value) || 0),
+    ...(spec.guides || []).filter((g) => g.fit !== false).map((g) => Number(g.value) || 0),
   );
   const { max, ticks } = spec.yMax
     ? { max: spec.yMax, ticks: niceScale(spec.yMax).ticks.filter((t) => t <= spec.yMax) }
@@ -609,7 +609,11 @@ function drawLine(spec, width, format, formatShort, live) {
   }
 
   for (const b of spec.bands || []) { if (Number.isFinite(b.from)) all.push(b.from); if (Number.isFinite(b.to)) all.push(b.to); }
-  for (const g of spec.guides || []) { if (Number.isFinite(g.value)) all.push(g.value); }
+  /* A guide with `fit: false` does not stretch the axis to reach it — a goal
+     thirty pounds under three months of weigh-ins would flatten them to a
+     line — and is drawn clamped at the edge with its label, which says
+     plainly that the goal is below the chart. */
+  for (const g of spec.guides || []) { if (Number.isFinite(g.value) && g.fit !== false) all.push(g.value); }
   const band = spec.zeroBase
     ? (() => { const s = niceScale(Math.max(...all)); return { min: 0, max: s.max, ticks: s.ticks }; })()
     : niceBand(Math.min(...all), Math.max(...all));
@@ -819,7 +823,11 @@ function drawLine(spec, width, format, formatShort, live) {
     if (hi[1] !== n - 1 && !nearEnd(hi[1])) putLabel(hi[1], format(hi[0]), -10);
     if (lo[1] !== n - 1 && lo[1] !== hi[1] && !nearEnd(lo[1])) putLabel(lo[1], format(lo[0]), 16);
   }
-  if (lead && leadVals[n - 1] != null && !allLabelled.size) putLabel(n - 1, format(leadVals[n - 1]));
+  /* `annotate: false` is a figure whose numbers live in tiles beside it; on
+     a dense daily series the endpoint label sat on top of the last dots. */
+  if (lead && spec.annotate !== false && leadVals[n - 1] != null && !allLabelled.size) {
+    putLabel(n - 1, format(leadVals[n - 1]));
+  }
 
   /* Caller-chosen direct labels, for a figure where the point worth naming is
      not the extreme of the lead series — the peak of a projection drawn behind

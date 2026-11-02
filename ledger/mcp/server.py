@@ -44,8 +44,9 @@ app; nothing is computed in this server.
 
 Ledger is the record. When a Garmin MCP is also connected, answer from
 Ledger first for anything about training, sessions, load, ACWR, matches,
-leagues, habits, weight, or the watch's nightly numbers (sleep, HRV,
-resting HR, readiness, body battery, stress): Ledger holds them already
+leagues, habits, weight, calories eaten and burned, or the watch's nightly
+numbers (sleep, HRV, resting HR, readiness, body battery, stress): Ledger
+holds them already
 cleaned, calibrated and on the app's own scales, and a figure quoted from
 here is the figure on the page. Go to the Garmin MCP only for what Ledger
 does not store — per-activity detail such as splits, laps, HR time series,
@@ -70,6 +71,12 @@ Conventions the data follows:
   week; show the figures.
 - Leagues: `leagues` is the seasons being played; `league_seasons` is every
   season on record with its final table, results and the goals logged.
+- Calories: intake is what the user typed, burn is Garmin's. A day's deficit
+  is burn minus intake. For today the burn is an estimate and the payload
+  says so (`burn.estimated`): Garmin pro-rates BMR during the day, so the
+  app takes the median BMR of recent finished days as the full-day baseline
+  and adds the active calories so far. Quote the `arithmetic` line as
+  printed; state the figures against the target, do not judge the day.
 - What a field means, and which surfaces depend on it, is in the resource
   `ledger://docs/data-map`; the design rules are in `ledger://docs/brief`.
 
@@ -319,10 +326,50 @@ async def daily_metrics(
 
     Nulls are nights the watch was not worn, never zero. Default window is the
     trailing 28 days; `all_time` returns every night recorded.
+
+    Rows also carry the raw burn columns (`calories_total`, `calories_active`,
+    `calories_bmr`, `day_elapsed_min`) exactly as Garmin reported them at
+    fetch time. Do not read `calories_total` as a day's burn from here: a row
+    with `day_elapsed_min` under 1440 is a partial day. The `calories` tool
+    has the interpreted figures.
     """
     return await _get(
         "/api/metrics", **{"from": from_date, "to": to_date}, all=all_time or None
     )
+
+
+# --- Calories --------------------------------------------------------------
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def calories(from_date: str | None = None, to_date: str | None = None) -> dict[str, Any]:
+    """Intake against burn, one row per day: the meals typed in and their sum
+    (`intake`), what the watch reports burned (`burn.bmr` + `burn.active` =
+    `burn.total`), the `deficit` (burn minus intake), and `eat_up_to`, the
+    intake that would land exactly on the daily target.
+
+    `burn.estimated` is true for an unfinished day: Garmin pro-rates BMR
+    during the day, so the app uses the median BMR of recent finished days
+    as the full-day baseline (`burn.baseline_note` says how many) and adds
+    the active calories so far. That is a floor, since activity can still
+    rise. A past day with no watch row has no burn and no deficit, never a
+    guessed one, and a day with no meals is unlogged rather than zero.
+
+    `arithmetic` is the whole sum as one line; quote it as printed.
+    `standing` is the app's own word for where the deficit sits against the
+    target (met, close, short, over, far_over); report it as that word, not
+    as praise or blame. Default window is the trailing 28 days. `summary`
+    carries the rolling 7- and 28-day mean deficit over finished, logged
+    days only, ending yesterday, each with its standing.
+    """
+    return await _get("/api/calories", **{"from": from_date, "to": to_date})
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def calories_settings() -> dict[str, Any]:
+    """The daily deficit target in kcal the Calories page measures each day
+    against (500 until one is set), and whether that is the default."""
+    return await _get("/api/calories/settings")
 
 
 # --- Weeks and habits -----------------------------------------------------

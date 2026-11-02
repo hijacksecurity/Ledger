@@ -30,7 +30,7 @@ import { figure } from './charts.js';
 import { habitsPillar } from './score.js';
 import {
   panel, panelError, statStrip, segmented, emptyNote, skeletonBlock,
-  setTimeframe, sectionRule, collapsible, readout,
+  setTimeframe, sectionRule, collapsible, readout, rememberedChoice, rememberChoice,
 } from './ui.js';
 import {
   daysStrip, marksLegend, datesOf, ratePct, rateWords, targetText,
@@ -69,7 +69,8 @@ function boundsFor(key, today) {
 export function mount(host, route, { setQuery }) {
   const q = route.query;
   const state = {
-    range: RANGES.some(([k]) => k === q.get('range')) ? q.get('range') : 'week',
+    range: rememberedChoice('ledger.habits.range', route, 'range',
+      (v) => RANGES.some(([k]) => k === v), 'week'),
     payload: null,
     trend: null,
     /* The night whose number is being corrected, or null. One at a time: an
@@ -190,6 +191,7 @@ export function mount(host, route, { setQuery }) {
     clear(rangeCtl);
     rangeCtl.append(segmented(RANGES, state.range, (v) => {
       state.range = v;
+      rememberChoice('ledger.habits.range', v);
       state.editing = null;
       setQuery({ range: v });
       load();

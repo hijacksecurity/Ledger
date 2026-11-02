@@ -910,6 +910,14 @@ _METRIC_COLUMNS = (
     "hrv_balanced_high",
     "hrv_low_upper",
     "sleep_need_min",
+    # 018 — burn, from get_stats_and_body. As reported at fetch time: bmr is
+    # pro-rated until day_elapsed_min reaches 1440. report/calories.py is the
+    # only interpreter.
+    "calories_total",
+    "calories_active",
+    "calories_bmr",
+    "day_elapsed_min",
+    "calories_fetched_at",
 )
 
 
@@ -1260,3 +1268,62 @@ def clear_habit_day(conn: sqlite3.Connection, habit_id: int, day: str) -> None:
     is what "undo my correction" has to mean.
     """
     conn.execute("DELETE FROM habit_day WHERE habit_id = ? AND date = ?", (habit_id, day))
+
+
+# --- meals ----------------------------------------------------------------
+#
+# A meal is a number on a day (migration 018). The day's intake is always the
+# sum of its rows, recomputed on read; nothing stores a total.
+
+
+def meals_between(conn: sqlite3.Connection, start: str, end: str) -> list[sqlite3.Row]:
+    return list(
+        conn.execute(
+            "SELECT * FROM meal WHERE date BETWEEN ? AND ? ORDER BY date, id",
+            (start, end),
+        )
+    )
+
+
+def meal_by_id(conn: sqlite3.Connection, meal_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM meal WHERE id = ?", (meal_id,)).fetchone()
+
+
+def add_meal(conn: sqlite3.Connection, date: str, kcal: int, label: str = "") -> int:
+    now = _now()
+    cur = conn.execute(
+        "INSERT INTO meal (date, label, kcal, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        (date, label, kcal, now, now),
+    )
+    return int(cur.lastrowid)
+
+
+_MEAL_FIELDS = ("date", "label", "kcal")
+
+
+def update_meal(conn: sqlite3.Connection, meal_id: int, **fields: Any) -> None:
+    fields = {k: v for k, v in fields.items() if k in _MEAL_FIELDS}
+    if not fields:
+        return
+    fields["updated_at"] = _now()
+    sets = ", ".join(f"{k} = ?" for k in fields)
+    conn.execute(f"UPDATE meal SET {sets} WHERE id = ?", (*fields.values(), meal_id))
+
+
+def delete_meal(conn: sqlite3.Connection, meal_id: int) -> int:
+    return conn.execute("DELETE FROM meal WHERE id = ?", (meal_id,)).rowcount
+
+
+def metric_rows_with_bmr(conn: sqlite3.Connection, before: str, limit: int = 28) -> list[sqlite3.Row]:
+    """The most recent rows carrying a BMR, newest first, strictly before a day.
+
+    Feeds the full-day baseline for an unfinished day; the caller decides which
+    of these count as finished.
+    """
+    return list(
+        conn.execute(
+            "SELECT date, calories_bmr, day_elapsed_min FROM metric_daily "
+            "WHERE date < ? AND calories_bmr IS NOT NULL ORDER BY date DESC LIMIT ?",
+            (before, limit),
+        )
+    )

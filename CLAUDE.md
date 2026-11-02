@@ -75,6 +75,39 @@ saying 375 beside a note dividing by 339.
 3. **Look at a screenshot** of anything visual. Alignment, spacing and colour
    are not verifiable from a diff.
 4. Touched Python? `.venv/Scripts/python.exe -m pytest`.
+5. Touched `ledger/web/`? `.venv/Scripts/python.exe scripts/conventions.py --check`
+   (remembered controls, service-worker shell, qa routes, data map), then the
+   `agents/ui-critic` agent on the working copy, then the roll-out below.
+
+## Front-end conventions — the floor for any view, new or changed
+
+These are what the rest of the app already does. Read `ledger/web/ui.js` end
+to end and two sibling `view-*.js` files before building; the user notices
+every one that is missed.
+
+- **Develop off the live mount.** `./ledger/web` is bind-mounted into the
+  running container: a save is on the phone. Work in a copy served on port
+  8001 against `data/demo.db`, look at it, then copy over and bump `sw.js`
+  VERSION and `app.js` BUILD.
+- **Look at it as a stranger, on a phone, in both themes**, before it goes
+  live. Every number, mark and colour must say what it is and which way is
+  good without the source code. Screenshots, not diffs.
+- **A chosen window is remembered** across visits (`rememberedChoice` /
+  `rememberChoice`, or the Sports pair). The URL still wins. A position in
+  time (the week, the day) is not remembered.
+- **Day names are at least three letters** — Mon, Tue … Sun — never two.
+- **No bare numbers.** A figure carries its unit and an icon or a word that
+  says what it is; a colour is explained by a key on the same screen.
+- **Verify a colour by its computed value and the screenshot, never by its
+  class name.** A cell classed green rendered grey for a release because a
+  later rule reset `--tone`; `qa.py` now flags any `tone-*` element whose
+  `--tone` does not resolve to that tone.
+- **Spaces between adjacent text nodes**, so `textContent` never runs words
+  together (the audit checks this).
+- The usual: timeframe line under the title (`setTimeframe`, verbatim from
+  the server), deep links through the hash, a Table toggle on every figure,
+  tap targets ≥ 40 px, nothing computed in the browser that the API already
+  publishes, every panel title in `docs/DATA-MAP.md`.
 
 **When a data field changes, `docs/DATA-MAP.md` says what else depends on it.**
 Fixing one surface and leaving four wrong is this project's most repeated
@@ -137,6 +170,24 @@ wearer, stored per night. Sleep uses Garmin's per-night sleep need. Resting
 HR uses the wearer's own 28-night mean. The scale is printed beside every
 tinted figure. Load, ACWR and anything the app computes itself stay untinted
 everywhere, including on that page.
+
+### Calories reads against the user's own target, and that is the third exception
+
+`#/calories` and the Calories widget on `#/week` tint by **standing**: where
+a day's deficit sits against the daily target (500 kcal unless set). It was
+asked for directly — the page has to be read at arm's length without reading
+— after a first version shipped untinted. The rules that keep it honest:
+
+- The standing is computed once, server-side (`report/calories.py::standing_of`),
+  in five words — met, close, short, over, far_over — and drawn in **three
+  colours everybody already knows**: green under the limit, amber past the
+  limit but under the burn, red over the burn. The words live in titles and
+  aria text; the colour is what is read, by the user's direct request.
+- Today is tinted on its projection and carries an `est` tag wherever it
+  appears, because it is not over.
+- The target is the user's own number, printed on the page beside the
+  figures. Nothing else on the page carries a hue it has not earned; meal
+  hues mean *which meal*, never how big.
 
 What did **not** change, and must not:
 

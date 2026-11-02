@@ -20,7 +20,7 @@ import argparse
 import pathlib
 import random
 import sys
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -162,6 +162,58 @@ def write_metrics(conn, rng: random.Random, days: int, end: date) -> None:
         )
 
 
+def write_calories(conn, rng: random.Random, days: int, end: date) -> None:
+    """Burn and meals for the Calories page: invented, shaped like a record.
+
+    Finished days carry a full-day BMR, more active calories on a session
+    day, and 1440 elapsed minutes. The last day is written the way the sync
+    finds it mid-afternoon: BMR pro-rated to the hours elapsed, active so
+    far, so the page's baseline-and-projection path gets exercised.
+    """
+    session_days = {r[0] for r in conn.execute("SELECT DISTINCT date FROM session")}
+    slots = (("breakfast", 450, 750), ("lunch", 600, 900), ("snack", 100, 300),
+             ("dinner", 550, 900), ("bedtime", 150, 250))
+    for i in range(days):
+        d = end - timedelta(days=days - 1 - i)
+        iso = d.isoformat()
+        bmr = round(rng.gauss(2210, 25))
+        active = int(max(150, rng.gauss(620 if iso in session_days else 380, 180)))
+        last = d == end
+        if last:
+            now = datetime.now()
+            elapsed = max(60, now.hour * 60 + now.minute)
+            q.upsert_metric_daily(
+                conn, iso, calories_bmr=round(bmr * elapsed / 1440),
+                calories_active=round(active * elapsed / 1440),
+                calories_total=round((bmr + active) * elapsed / 1440),
+                day_elapsed_min=elapsed,
+                calories_fetched_at=datetime.now(UTC).isoformat(timespec="seconds"),
+            )
+        else:
+            q.upsert_metric_daily(
+                conn, iso, calories_bmr=bmr, calories_active=active,
+                calories_total=bmr + active, day_elapsed_min=1440,
+                calories_fetched_at=f"{(d + timedelta(days=1)).isoformat()}T07:00:00+00:00",
+            )
+        if rng.random() > 0.9 and not last:
+            continue  # a day nothing was logged on
+        meals = [(label, rng.randint(lo, hi)) for label, lo, hi in slots]
+        if rng.random() < 0.3:
+            meals.insert(3, ("snack", rng.randint(100, 250)))
+        if last:
+            meals = meals[:3]
+        else:
+            # Nudge the day toward a deficit of about 420 ± 250 without
+            # making every day identical.
+            want = bmr + active - int(rng.gauss(420, 250))
+            total = sum(k for _, k in meals)
+            scale = want / total if total else 1
+            meals = [(label, max(80, min(1500, round(k * scale)))) for label, k in meals]
+        for label, kcal in meals:
+            q.add_meal(conn, iso, kcal, label)
+    q.set_setting(conn, "calories_deficit_target_kcal", "500")
+
+
 def write_habits(conn, rng: random.Random, days: int, end: date) -> None:
     rows = conn.execute("SELECT id, key, mode FROM habit WHERE archived_at IS NULL").fetchall()
     stamp = datetime.now().isoformat(timespec="seconds")
@@ -202,9 +254,10 @@ def main() -> int:
         save_session(conn, s)
     write_metrics(conn, rng, 300, end)
     write_habits(conn, rng, 120, end)
+    write_calories(conn, rng, 120, end)
     conn.commit()
     n = conn.execute("SELECT COUNT(*) FROM session").fetchone()[0]
-    print(f"{db}: {len(weeks)} weeks, {n} sessions, 300 nights, 120 days of habits — all invented")
+    print(f"{db}: {len(weeks)} weeks, {n} sessions, 300 nights, 120 days of habits and meals — all invented")
     return 0
 
 

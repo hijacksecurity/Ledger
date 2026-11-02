@@ -364,6 +364,32 @@ export function rememberSportsRange(v) {
 }
 
 /**
+ * The same rule for any page's window or range control: the URL wins when it
+ * names a valid choice, otherwise the last choice made on this device, else
+ * the page's default. A control that snaps back to its default on every
+ * arrival is a control the reader has to re-set every time — the Sports
+ * pages learnt this first, and a page shipped later without it.
+ *
+ *   rememberedChoice('ledger.calories.range', route, 'range', isValid, '28d')
+ *   rememberChoice('ledger.calories.range', v)   // in the control's onChange
+ *
+ * Only a *choice* is remembered. A position in time — the week, the day — is
+ * not, because the right default for those is now.
+ */
+export function rememberedChoice(key, route, param, isValid, fallback) {
+  const q = route && route.query ? route.query.get(param) : null;
+  if (q != null && isValid(q)) return q;
+  try {
+    const v = localStorage.getItem(key);
+    if (v != null && isValid(v)) return v;
+  } catch { /* private mode */ }
+  return fallback;
+}
+export function rememberChoice(key, v) {
+  try { localStorage.setItem(key, String(v)); } catch { /* private mode */ }
+}
+
+/**
  * Resolve a preset key to {from, to}. `all` means unbounded, so both null.
  *
  * A bounded preset sends an explicit `to` of today. This began as a workaround

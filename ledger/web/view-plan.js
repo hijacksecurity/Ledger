@@ -37,6 +37,7 @@ import {
   panel, panelError, statStrip, segmented, emptyNote, kindName, skeletonLines,
   skeletonBlock, sectionRule, sectionGroup, collapsible, setTimeframe,
   weekPosition, nowTag,
+  rememberedChoice, rememberChoice,
 } from './ui.js';
 import { figure } from './charts.js';
 import {
@@ -122,8 +123,10 @@ export function mount(host, route, { setQuery }) {
   const q = route.query;
   const state = {
     pct: clampPct(q.get('pct'), 10),
-    weeks: oneOf([4, 8, 12, 26], q.get('weeks'), 8),
-    deload: oneOf([0, 3, 4], q.get('deload'), 4),
+    weeks: oneOf([4, 8, 12, 26], rememberedChoice('ledger.plan.weeks', route, 'weeks',
+      (v) => ['4', '8', '12', '26'].includes(String(v)), '8'), 8),
+    deload: oneOf([0, 3, 4], rememberedChoice('ledger.plan.deload', route, 'deload',
+      (v) => ['0', '3', '4'].includes(String(v)), '4'), 4),
     /* Which week the ramp is built from. Null means the server's own default:
        the week containing today. */
     weekOf: q.get('week') || null,
@@ -443,13 +446,13 @@ export function mount(host, route, { setQuery }) {
       el('div', { class: 'filter' }, [
         el('span', { class: 'lbl', text: 'Horizon' }),
         segmented(HORIZONS, state.weeks, (v) => {
-          state.weeks = v; pushQuery(); buildControls(); load();
+          state.weeks = v; rememberChoice('ledger.plan.weeks', v); pushQuery(); buildControls(); load();
         }, 'How many weeks to project'),
       ]),
       el('div', { class: 'filter' }, [
         el('span', { class: 'lbl', text: 'Down weeks' }),
         segmented(DELOADS, state.deload, (v) => {
-          state.deload = v; pushQuery(); buildControls(); load();
+          state.deload = v; rememberChoice('ledger.plan.deload', v); pushQuery(); buildControls(); load();
         }, 'How often to plan a lighter week'),
       ]),
     );

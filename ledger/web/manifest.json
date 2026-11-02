@@ -25,6 +25,7 @@
   ],
   "shortcuts": [
     { "name": "Add an activity", "short_name": "Add", "url": "/#/add" },
+    { "name": "Log a meal", "short_name": "Meal", "url": "/#/calories" },
     { "name": "Session log", "short_name": "Log", "url": "/#/log" },
     { "name": "Soccer", "short_name": "Soccer", "url": "/#/soccer" }
   ]

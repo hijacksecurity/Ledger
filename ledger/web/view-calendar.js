@@ -25,6 +25,7 @@ import {
 import {
   panel, panelError, statStrip, segmented, emptyNote, skeletonBlock, kindName,
   sessionList, setTimeframe, dowBadge,
+  rememberedChoice, rememberChoice,
 } from './ui.js';
 import { sessionsIn } from './dataset.js';
 import { dayCell, daySymbol, hueOf, hueStyle, STATES } from './habits.js';
@@ -62,7 +63,7 @@ const shiftMonths = (iso, n) => {
 export function mount(host, route, { setQuery }) {
   const q = route.query;
   const state = {
-    grain: GRAINS.some(([k]) => k === q.get('by')) ? q.get('by') : 'month',
+    grain: rememberedChoice('ledger.calendar.grain', route, 'by', (v) => GRAINS.some(([k]) => k === v), 'month'),
     /* The anchor is always a real date inside the period on screen; each grain
        widens it to its own bounds. Stored rather than derived so stepping back
        and forth is lossless. */
@@ -132,6 +133,7 @@ export function mount(host, route, { setQuery }) {
     clear(grainCtl);
     grainCtl.append(segmented(GRAINS, state.grain, (v) => {
       state.grain = v;
+      rememberChoice('ledger.calendar.grain', v);
       push();
       load();
     }, 'Calendar grain'));

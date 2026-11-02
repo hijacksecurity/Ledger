@@ -288,5 +288,32 @@
     }
   }
 
+  /* ── a colour class that does not paint ───────────────────────────────
+     A week cell carried `tone-strong` and rendered grey for a release: a
+     later rule on the cell set `--tone` itself and won the cascade, so the
+     class, the data and the DOM all said green and the screen did not. The
+     user read it as "no colour, can't tell good from bad". Every element
+     with a tone class must resolve `--tone` to that tone's own value. */
+  {
+    const root = getComputedStyle(document.documentElement);
+    const want = {};
+    for (const t of ['strong', 'solid', 'mixed', 'thin', 'poor']) {
+      want[t] = root.getPropertyValue(`--tone-${t}`).trim().toLowerCase();
+    }
+    let n = 0;
+    for (const el of document.querySelectorAll('[class*="tone-"]')) {
+      if (!visible(el)) continue;
+      const m = /(?:^|\s)tone-(strong|solid|mixed|thin|poor)(?:\s|$)/.exec(el.className.toString());
+      if (!m || !want[m[1]]) continue;
+      const got = getComputedStyle(el).getPropertyValue('--tone').trim().toLowerCase();
+      if (got && got !== want[m[1]] && !got.startsWith('var(')) {
+        add('tone class not painting',
+          `<${el.tagName.toLowerCase()} class="${el.className.toString().slice(0, 40)}"> is tone-${m[1]} `
+          + `but --tone resolves to ${got} (expected ${want[m[1]]})`);
+        if (++n >= 3) break;
+      }
+    }
+  }
+
   return out;
 }

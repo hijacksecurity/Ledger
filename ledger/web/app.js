@@ -22,12 +22,14 @@ import * as viewScore from './view-score.js';
 import * as viewCalendar from './view-calendar.js';
 import * as viewHabits from './view-habits.js';
 import * as viewRecovery from './view-recovery.js';
+import * as viewCalories from './view-calories.js';
 
 const VIEWS = {
   week: { module: viewWeek, title: 'Week' },
   score: { module: viewScore, title: 'Scoreboard' },
   calendar: { module: viewCalendar, title: 'Calendar' },
   habits: { module: viewHabits, title: 'Habits' },
+  calories: { module: viewCalories, title: 'Calories' },
   recovery: { module: viewRecovery, title: 'Recovery' },
   plan: { module: viewPlan, title: 'Plan' },
   /* The hand-written week intent, on its own route. It lived at the foot of
@@ -47,7 +49,7 @@ const VIEWS = {
   edit: { module: viewEntry, title: 'Edit activity', chromeless: true },
 };
 
-const ALIASES = { sleep: 'recovery', wellness: 'recovery', hrv: 'recovery', health: 'recovery', habit: 'habits', cal: 'calendar', points: 'score', level: 'score', intent: 'plan', explore: 'trends', history: 'all', sports: 'soccer', garmin: 'sync', weight: 'all', run: 'running', lift: 'lifting', '': 'week' };
+const ALIASES = { sleep: 'recovery', wellness: 'recovery', hrv: 'recovery', health: 'recovery', habit: 'habits', food: 'calories', kcal: 'calories', meals: 'calories', eat: 'calories', cal: 'calendar', points: 'score', level: 'score', intent: 'plan', explore: 'trends', history: 'all', sports: 'soccer', garmin: 'sync', weight: 'all', run: 'running', lift: 'lifting', '': 'week' };
 
 const host = $('#view-host');
 const main = $('#main');
@@ -284,7 +286,7 @@ main.removeAttribute('aria-busy');
 
 /* Bump with the service worker VERSION. Shown on the Sync page so "am I even
    looking at the new build?" is answerable without opening devtools. */
-export const BUILD = 'ledger-v134';
+export const BUILD = 'ledger-v143';
 window.__ledgerBuild = BUILD;
 
 if ('serviceWorker' in navigator) {

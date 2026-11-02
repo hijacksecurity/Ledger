@@ -439,6 +439,16 @@ def parse_daily_stats(payload: Any) -> dict[str, Any]:
     take("intensity_vigorous_min", "vigorousIntensityMinutes", 0, 1440)
     take("body_battery_wake", "bodyBatteryAtWakeTime", 0, 100)
     take("body_battery_charged", "bodyBatteryChargedValue", 0, 100)
+    # 018 — burn. As reported at fetch time: on an unfinished day Garmin
+    # pro-rates bmrKilocalories to the hours elapsed and activeKilocalories is
+    # the running total, so day_elapsed_min travels with them to say how much
+    # of the day the figures cover. report/calories.py reads all four together.
+    take("calories_total", "totalKilocalories", 0, 15_000)
+    take("calories_active", "activeKilocalories", 0, 10_000)
+    take("calories_bmr", "bmrKilocalories", 0, 5_000)
+    ms = _num(payload.get("durationInMilliseconds"))
+    if ms is not None and 0 < ms <= 86_400_000:
+        out["day_elapsed_min"] = round(ms / 60_000)
     return out
 
 

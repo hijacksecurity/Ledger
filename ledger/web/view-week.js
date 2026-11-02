@@ -14,6 +14,7 @@ import {
   setTimeframe,
 } from './ui.js';
 import { figure, splitBar, sparkline } from './charts.js';
+import { standingPill, fuelBar, weekStrip, colourKey, heroOf } from './calories.js';
 import {
   weekReadout, invalidate, weekIntent, goalWeightLb, latestWeighIn, weighInDelta, cached,
   loadPlanState,
@@ -49,6 +50,7 @@ export function mount(host, route) {
        and there was nothing". The widget holds its skeleton for the first and
        states the fact for the second. */
     habits: undefined,
+    calories: undefined,
     /* Same again for the nights: `undefined` until `/api/metrics` answers. */
     recovery: undefined,
   };
@@ -136,6 +138,14 @@ export function mount(host, route) {
      are about today; everything below reports what already happened. The
      charts, the findings and the stress card stay on `#/recovery` —
      drawing them here would be that page, twice. */
+  /* What is left to eat today, and how the week's days stand against the
+     target — seven toned cells, the same strip `#/calories` opens with. It
+     sits with Habits and Recovery because it is about today; the meals, the
+     history and the target live on `#/calories`, one tap away. */
+  const pCal = panel({
+    title: 'Calories', sub: ' ', wide: true, kicker: 'This week',
+  });
+
   const pRecov = panel({
     title: 'Recovery', sub: ' ', wide: true, kicker: 'Last night',
   });
@@ -200,7 +210,7 @@ export function mount(host, route) {
   nav.append(jump, btnToday);
   /* The read-out closes the page: it is the week in plain facts, the thing
      to read once everything above has been looked at, not before. */
-  host.append(nav, hero, stripHost, pDist, pHabits, pRecov, rowA, pSplit, rowB, pRead, foot);
+  host.append(nav, hero, stripHost, pDist, pHabits, pCal, pRecov, rowA, pSplit, rowB, pRead, foot);
 
   heroFig.append(el('div', { class: 'sk', style: 'height:5.5rem;width:9rem' }));
   skeletonLines(2, heroAside);
@@ -262,7 +272,7 @@ export function mount(host, route) {
        own nights rather than none. */
     const today = todayISO();
     const weekEndISO = (state.data.week || {}).end;
-    const [lk, soc, prior, hab, base, wk] = await Promise.all([
+    const [lk, soc, prior, hab, base, wk, cal] = await Promise.all([
       api('/api/plan/locked'),
       api('/api/soccer'),
       api(`/api/sessions${qs({
@@ -272,8 +282,10 @@ export function mount(host, route) {
       api(`/api/habits${qs({ from: weekStartISO, to: weekEndISO })}`),
       cached(`metrics:base:${today}`, `/api/metrics${qs({ from: addDays(today, -(BASELINE_NIGHTS - 1)), to: today })}`),
       cached(`metrics:${weekStartISO}:${weekEndISO}`, `/api/metrics${qs({ from: weekStartISO, to: weekEndISO })}`),
+      api(`/api/calories${qs({ from: weekStartISO, to: weekEndISO })}`),
       /* The planned counts and the goal weight, from the server, before the
-         score that reads them is built. */
+         score that reads them is built. Last, and not destructured: it
+         writes into state itself. */
       loadPlanState(),
     ]);
     if (!alive) return;
@@ -281,9 +293,11 @@ export function mount(host, route) {
     state.soccer = soc.ok ? soc.data : null;
     state.paceBefore = prior.ok ? weightedPace(prior.data.items || []) : null;
     state.habits = hab.ok ? hab.data : null;
+    state.calories = cal.ok ? cal.data : null;
     state.recovery = { base, wk, today };
     paintDistance();
     paintHabits();
+    paintCalories();
     paintRecovery();
     paintScore();
   }
@@ -349,6 +363,50 @@ export function mount(host, route) {
    * Every state here is the server's own resolution, drawn by the shared
    * `daysStrip`. This page decides nothing about a day.
    */
+  /**
+   * Calories: the one number to act on and the week at a glance.
+   *
+   * Left to eat today, in the tone of where the day stands, the fuel bar
+   * under it, and seven cells for the week — each day's deficit in its
+   * standing's tone, the word in the title. Everything here is the server's
+   * `/api/calories` for the week on screen; `calories.js` draws it exactly
+   * as `#/calories` does, so a day cannot read differently on the two pages.
+   * On a past week there is no "today", so the strip is the whole widget.
+   */
+  function paintCalories() {
+    if (state.calories === undefined) return;
+    clear(pCal.body);
+    const payload = state.calories;
+    if (!payload || !(payload.days || []).length) {
+      pCal.head.querySelector('.sub').textContent = ' ';
+      pCal.body.append(emptyNote('Calories are not available right now.'));
+      return;
+    }
+    setTimeframe(pCal, payload.timeframe);
+    const todayISO_ = payload.today;
+    const todayRow = payload.days.find((d) => d.date === todayISO_);
+    pCal.head.querySelector('.sub').textContent = todayRow ? fmt.dowDate(todayISO_) : 'the week';
+
+    /* The same order as the top of `#/calories`: the week, its key, then
+       today — so the two read the same way. */
+    const wrap = el('div', { class: 'calw' });
+    wrap.append(weekStrip(payload.days, todayISO_, {
+      onTap: (d) => { if (d.date <= todayISO_) location.hash = `#/calories${d.date === todayISO_ ? '' : `?date=${d.date}`}`; },
+    }));
+    wrap.append(colourKey(payload.target));
+    if (todayRow) {
+      const h = heroOf(todayRow, todayISO_);
+      wrap.append(el('a', { class: 'calw-today', href: '#/calories', 'aria-label': 'Open the Calories page' }, [
+        el('div', { class: 'calw-fig' }, [
+          el('b', { class: `calw-n ${h.tone}`, text: h.value }),
+          el('span', { class: 'calw-u' }, h.lines.map((t) => el('span', { text: t }))),
+        ]),
+        el('div', { class: 'calw-side' }, [standingPill(todayRow, todayISO_), fuelBar(todayRow, { compact: true })]),
+      ]));
+    }
+    pCal.body.append(wrap);
+  }
+
   function paintHabits() {
     if (state.habits === undefined) return;
     clear(pHabits.body);
