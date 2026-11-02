@@ -454,6 +454,39 @@ must first agree with itself.
 only the published ones pushes an unplayed match's kilometres onto a run day —
 three runs of 12.6 km instead of two matches and three runs of 10.9.
 
+### The forecast  →  `GET /api/weather/hourly`, `GET /api/weather/daily`
+Not in the database. `ledger/weather.py` fetches Open-Meteo (`best_match`,
+16 days) for the one place in `.env` (`LEDGER_WEATHER_LAT` / `_LON` / `_PLACE`
+/ `_UNITS`), keeps it in memory for 15 minutes (the US models it blends
+publish hourly), and serves the last good forecast marked `stale` when a
+refetch fails (5-minute floor between attempts; at most 300 attempts in any
+24 hours against Open-Meteo's free 10,000 a day; a 503 only when nothing was
+ever fetched). `#/week` re-asks every 5 minutes while in view and on coming
+back into view; `#/plan` on coming back into view. Those asks hit the
+server's copy, never Open-Meteo. No place set →
+`configured: false` and nothing is fetched. Every figure is rounded, every
+word and icon key (`summary`, `icon`, from the WMO `code`) is chosen, and
+every `status` (`forecast` / `past` / `beyond`) and `outlook` (≥ 7 days out)
+is decided on the server. So are the three things the pages colour by:
+`temp_band` (freezing … very hot, on round bounds per unit system, listed with
+ranges in `bands`), `precip_level` (the NWS wording scale for a probability:
+dry < 20%, slight 20%, chance 30–50%, likely 60–70%, certain ≥ 80%, rounded to
+tens) and the hourly `headline` built from it ("Rain likely from 2 pm").
+
+| Surface | Where | Notes |
+|---|---|---|
+| Weather, the next eight hours (hero top right on a wide screen; under the week's tiles, above Distance, below 820 px) | `#/week` | `paintNow()` in `weather.js`, `hourly?hours=8`: the first hour large (`icon`, `temp` in its `temp_band` colour, `summary`, `feels`), then seven columns (`label`, `icon`, `temp` by band, a bar and figure for `precip_prob` by `precip_level`); `headline.text` under them; key from `bands`, only the bands on screen. Sun or moon wash from the first hour's `is_day`. Hidden when not configured. About now, so the week arrows do not move it |
+| The sky over each day, at the top of each day cell | `#/plan` → The week, day by day | `dayMark()` in `weather.js`, `daily?from=<Mon>&to=<Sun>` for the week picked at the top: `icon`, `temp_max` by `temp_band`, `temp_min`, `summary`, `precip_prob` by `precip_level`; faint when `outlook`; blank unless `status == forecast`. Key from `bands` under the grid. Filled in place by `paintWx()`, so a late forecast never rebuilds the grid under a field being typed into. No cells → no marks (nothing committed) |
+| `/api/weather/*` payloads | MCP `weather_hourly`, `weather_daily` | Raw passthrough |
+
+**Trap:** "today" and "now" are the forecast place's, from its time zone
+(`local_now()`), not the server's — so a container in UTC still starts the
+hours at the right one. The browser's own clock only names "Today".
+
+**Trap:** a day the forecast cannot speak to has **no figures**, never
+zeroes; a cell that drew `0°F` and `0%` for a day past the horizon would be a
+forecast of freezing and dry.
+
 ---
 
 ## Surfaces by page

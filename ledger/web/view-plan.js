@@ -45,6 +45,7 @@ import {
   savePlanWeek, savePlanDays,
 } from './dataset.js';
 import { attainTone } from './score.js';
+import { dayMark, dayKey } from './weather.js';
 
 const HORIZONS = [[4, '4 weeks'], [8, '8 weeks'], [12, '12 weeks'], [26, '26 weeks']];
 const DELOADS = [[0, 'None'], [3, 'Every 3rd'], [4, 'Every 4th']];
@@ -143,6 +144,10 @@ export function mount(host, route, { setQuery }) {
        disagreed with them by construction. So it folds away once something is
        committed, and comes back when you say you are re-planning. */
     replanning: false,
+    /* The week's forecast, from /api/weather/daily — not plan data, and not
+       saved anywhere. `wxSeq` keeps only the latest week's answer. */
+    wx: null,
+    wxSeq: 0,
   };
   let figs = [];
   let alive = true;
@@ -1171,6 +1176,7 @@ export function mount(host, route, { setQuery }) {
             buildIntent();
             loadActual();
             loadDays();
+            loadWeather();
           },
         },
       }, [
@@ -1751,6 +1757,8 @@ export function mount(host, route, { setQuery }) {
 
       grid.append(el('div', { class: `daycell dc-${r.when}` }, [
         head,
+        /* The sky first, under the date: it is what a day is picked by. */
+        el('span', { class: 'daycell-wx', data: { date: r.date } }),
         el('div', { class: 'daycell-mk' }, mark ? [mark] : []),
         fig,
         el('span', { class: 'daycell-cap', text: caption }),
@@ -1758,6 +1766,7 @@ export function mount(host, route, { setQuery }) {
       ]));
     }
     pDays.body.append(grid);
+    paintWx();
 
     if (over) return;
 
@@ -1858,6 +1867,39 @@ export function mount(host, route, { setQuery }) {
     pDays.body.append(el('div', { class: 'plan-actions' }, [go, wipe]));
   }
 
+  /* The forecast for the week chosen at the top, as a small mark in each day
+     cell — the sky over a day sits on the day it is about. Kept apart from
+     the grid's own data: it arrives on its own and fills the marks in place,
+     so a forecast landing never rebuilds the grid under a field being typed
+     into. A later pick can land before an earlier one's answer; only the
+     latest is kept. */
+  async function loadWeather() {
+    const n = ++state.wxSeq;
+    const start = intent.week;
+    const res = await api(`/api/weather/daily${qs({ from: start, to: addDays(start, 6) })}`);
+    if (!alive || n !== state.wxSeq) return;
+    /* A failed ask keeps the marks already drawn for this week. */
+    if (!res.ok && state.wx && state.wxWeek === start) return;
+    state.wx = res.ok && res.data.configured ? res.data : null;
+    state.wxWeek = start;
+    paintWx();
+  }
+  /* Back in view after a while away, the forecast may have moved on. */
+  const wxOnVisible = () => { if (!document.hidden) loadWeather(); };
+  document.addEventListener('visibilitychange', wxOnVisible);
+  function paintWx() {
+    const wx = state.wx;
+    const grid = pDays.body.querySelector('.daygrid');
+    const old = pDays.body.querySelector('.wxday-key');
+    if (old) old.remove();
+    if (!grid) return;
+    const rows = wx ? new Map((wx.days || []).map((x) => [x.date, x])) : new Map();
+    for (const slot of grid.querySelectorAll('.daycell-wx')) {
+      slot.replaceChildren(dayMark(rows.get(slot.dataset.date), wx && wx.units));
+    }
+    if (wx && (wx.days || []).some((x) => x.status === 'forecast')) grid.after(dayKey(wx));
+  }
+
   /* ── boot ── */
 
   /* One page, so both halves boot. The intent half needs only the latest week
@@ -1896,10 +1938,15 @@ export function mount(host, route, { setQuery }) {
   boot();
   loadLocked();
   loadMix();
+  loadWeather();
 
   return {
-    destroy() { alive = false; figs.forEach((f) => f.destroy && f.destroy()); },
-    refresh() { loadActual(); load(); loadLocked(); loadMix(); loadDays(); },
+    destroy() {
+      alive = false;
+      document.removeEventListener('visibilitychange', wxOnVisible);
+      figs.forEach((f) => f.destroy && f.destroy());
+    },
+    refresh() { loadActual(); load(); loadLocked(); loadMix(); loadDays(); loadWeather(); },
   };
 }
 

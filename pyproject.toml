@@ -67,3 +67,5 @@ addopts = "-q"
 "ledger/leagues.py" = ["RUF001"]  # scraped pages use en dashes in scores
 "ledger/report/timeframe.py" = ["RUF001"]  # en dashes are intentional in date ranges
 "tests/test_timeframe_alignment.py" = ["RUF001"]  # asserts those exact labels
+"ledger/weather.py" = ["RUF001"]  # en dashes in the temperature key's ranges
+"tests/test_weather.py" = ["RUF001"]  # asserts those exact ranges

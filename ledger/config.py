@@ -11,6 +11,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from ledger.weather import Place, place_from_env
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 load_dotenv(REPO_ROOT / ".env")
@@ -44,6 +46,9 @@ class Config:
     planned_per_week: dict[str, int] = field(default_factory=dict)
     sync_call_delay_s: float = 2.5
     sync_chunk_pause_s: float = 30.0
+    # Where the forecast is for. None turns weather off: a location is
+    # personal, so it is only ever configuration, never a default.
+    weather: Place | None = None
 
 
 def load_config() -> Config:
@@ -61,4 +66,8 @@ def load_config() -> Config:
         },
         sync_call_delay_s=_float("LEDGER_SYNC_CALL_DELAY_S", 2.5),
         sync_chunk_pause_s=_float("LEDGER_SYNC_CHUNK_PAUSE_S", 30.0),
+        weather=place_from_env(
+            os.getenv("LEDGER_WEATHER_LAT"), os.getenv("LEDGER_WEATHER_LON"),
+            os.getenv("LEDGER_WEATHER_PLACE"), os.getenv("LEDGER_WEATHER_UNITS"),
+        ),
     )

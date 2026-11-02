@@ -50,8 +50,8 @@ holds them already
 cleaned, calibrated and on the app's own scales, and a figure quoted from
 here is the figure on the page. Go to the Garmin MCP only for what Ledger
 does not store — per-activity detail such as splits, laps, HR time series,
-weather, gear, device state — or when a Ledger tool says the app is down.
-Never combine the two sources into one figure.
+the weather during an activity, gear, device state — or when a Ledger tool
+says the app is down. Never combine the two sources into one figure.
 
 Conventions the data follows:
 - Dates are ISO (YYYY-MM-DD). Weeks run Monday to Sunday; `week_of` accepts
@@ -77,6 +77,9 @@ Conventions the data follows:
   app takes the median BMR of recent finished days as the full-day baseline
   and adds the active calories so far. Quote the `arithmetic` line as
   printed; state the figures against the target, do not judge the day.
+- Weather: `weather_hourly` and `weather_daily` are the forecast the pages
+  show, for the one place in the app's configuration, from Open-Meteo. A
+  forecast, never the record; a day seven or more out is an outlook.
 - What a field means, and which surfaces depend on it, is in the resource
   `ledger://docs/data-map`; the design rules are in `ledger://docs/brief`.
 
@@ -444,6 +447,47 @@ async def sync_status() -> dict[str, Any]:
 async def sync_log(limit: int = 50) -> dict[str, Any]:
     """The most recent sync log entries, newest first."""
     return await _get("/api/sync-log", limit=limit)
+
+
+# --- Weather ----------------------------------------------------------------
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def weather_hourly(hours: int = 24) -> dict[str, Any]:
+    """The forecast for the next `hours` hours (1 to 48), starting with the
+    hour in progress, for the one place set in the app's configuration, from
+    Open-Meteo. Each hour: temperature and feels-like, chance of rain (%) and
+    amount, wind and gusts, a summary word, and whether it is daylight.
+    `today` and `tomorrow` carry the high, low, sunrise and sunset.
+    `headline.text` is the stretch in one sentence, worded on the National
+    Weather Service's scale for a probability (each hour's `precip_level`:
+    dry, slight, chance, likely, certain); quote it as printed. `temp_band`
+    names each temperature's band, listed with its range in `bands`.
+
+    A forecast, not the record: nothing here is stored. `units` names the
+    units every figure is in; `fetched_at` says when it was fetched and
+    `stale: true` means the latest fetch failed and an older forecast is being
+    served. `configured: false` means no place is set — say so rather than
+    guessing a location. For the weather during a past activity, use the
+    Garmin MCP's per-activity weather instead."""
+    return await _get("/api/weather/hourly", hours=hours)
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def weather_daily(from_date: str | None = None, to_date: str | None = None) -> dict[str, Any]:
+    """The daily forecast for a window (default today and the six days after
+    it; at most 31 days): high and low, feels-like, the highest chance of rain
+    and the day's total, wind and gusts, sunrise and sunset, and a summary
+    word.
+
+    Every date in the window is a row. `status` is `forecast`, `past` (the day
+    has gone by; no figures) or `beyond` (further ahead than the 16-day
+    forecast reaches; no figures). `outlook: true` marks a day seven or more
+    days out — report it as a rough guide, not a forecast to plan on.
+    `temp_band` and `precip_level` are the same readings the hourly tool
+    carries.
+    `configured: false` means no place is set."""
+    return await _get("/api/weather/daily", **{"from": from_date, "to": to_date})
 
 
 # --- Resources: what the fields mean ---------------------------------------

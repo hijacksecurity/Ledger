@@ -13,7 +13,7 @@
  * Bump VERSION on every shell change.
  */
 
-const VERSION = 'ledger-v148';
+const VERSION = 'ledger-v153';
 const NET_TIMEOUT_MS = 3500;
 
 const SHELL = [
@@ -26,7 +26,7 @@ const SHELL = [
   '/view-score.js', '/score.js', '/view-calendar.js',
   '/view-habits.js', '/habits.js',
   '/view-recovery.js', '/recovery.js', '/recovery-cards.js',
-  '/view-calories.js', '/weight.js', '/calories.js',
+  '/view-calories.js', '/weight.js', '/calories.js', '/weather.js',
   '/manifest.json', '/icon.svg',
 ];
 

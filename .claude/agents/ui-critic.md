@@ -37,6 +37,12 @@ The pattern: the developer knew what it meant, so the page never said.
 
 ## Method
 
+0. **Read `docs/DESIGN.md` first.** It is the look the user has asked for:
+   understood at first look, one lead figure styled apart, colour that does
+   the first reading and is always keyed, never plain, no vendor names on
+   screen. A surface that is correct but plain, too small to read at a
+   glance, or uncoloured where colour would carry the meaning is a finding —
+   rank it as high as a clipped figure.
 1. **Where to look.** The working copy is served on `http://127.0.0.1:8001`
    when one is running (`curl -s http://127.0.0.1:8001/api/health`); the live
    app is `http://127.0.0.1:8000`. Audit the one you are told to; say which

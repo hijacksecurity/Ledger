@@ -28,6 +28,7 @@ import {
 import {
   daysStrip, editable, checkBox, hueStyle, measureBox, ratePct,
 } from './habits.js';
+import { paintNow } from './weather.js';
 
 /* `ledger.loadWeeks` in localStorage is no longer read or written — the control
    that set it is gone with the chart it sized. Old entries are harmless. */
@@ -96,7 +97,14 @@ export function mount(host, route) {
   const hero = el('section', { class: 'hero' });
   const heroFig = el('div', { class: 'hero-figure' });
   const heroAside = el('div', { class: 'hero-aside' });
-  hero.append(heroFig, heroAside);
+  /* The next eight hours of weather, top right. Asked for as a glance — how
+     warm, and is it raining or snowing — because the weather here turns
+     within the day and a run goes out in the dry window. It is about now, not
+     the week on screen, so the week arrows leave it alone. Hidden entirely
+     when no place is configured. */
+  const wxNow = el('aside', { class: 'wxnow', 'aria-label': 'Weather, the next eight hours' });
+  hero.classList.add('has-wx');
+  hero.append(heroFig, heroAside, wxNow);
 
   const stripHost = el('div', { class: 'strip-host' });
 
@@ -149,6 +157,7 @@ export function mount(host, route) {
   const pRecov = panel({
     title: 'Recovery', sub: ' ', wide: true, kicker: 'Last night',
   });
+
 
   const pSplit = panel({
     title: 'This week on one scale', sub: 'training load, split by modality',
@@ -212,12 +221,27 @@ export function mount(host, route) {
      to read once everything above has been looked at, not before. */
   host.append(nav, hero, stripHost, pDist, pHabits, pCal, pRecov, rowA, pSplit, rowB, pRead, foot);
 
+  /* Where the weather sits. Wide: the hero's third column, top right. Below
+     the hero's breakpoint the hero is one column, and there the card goes
+     after the week's tiles (Activities, Load…) and before Distance — the
+     average and the week's figures come first on a phone, the weather after
+     them. One card, moved rather than drawn twice, so a refresh repaints the
+     one on screen. The breakpoint is the hero's own (views.css, 820px). */
+  const wxNarrow = matchMedia('(max-width: 819.98px)');
+  const placeWeather = () => {
+    if (wxNarrow.matches) { if (wxNow.previousElementSibling !== stripHost) stripHost.after(wxNow); }
+    else if (wxNow.parentNode !== hero) hero.append(wxNow);
+  };
+  placeWeather();
+  wxNarrow.addEventListener('change', placeWeather);
+
   heroFig.append(el('div', { class: 'sk', style: 'height:5.5rem;width:9rem' }));
   skeletonLines(2, heroAside);
   skeletonBlock(96, stripHost);
   skeletonBlock(190, pDist.body);
   skeletonBlock(120, pHabits.body);
   skeletonBlock(170, pRecov.body);
+  skeletonBlock(132, wxNow);
   skeletonBlock(120, pScore.body);
   skeletonBlock(90, pSplit.body);
   skeletonBlock(90, pAcwr.body);
@@ -1433,11 +1457,35 @@ export function mount(host, route) {
     fetchWeek({ keepFrame: true });
   });
 
+  /* The forecast is about now, not the week on screen, so it keeps itself
+     current: asked again every five minutes while the page is in view and
+     the moment it comes back into view, so "Now" rolls over on the hour on a
+     phone left open. These asks are answered from the server's copy, which
+     refetches upstream at most every 15 minutes (`ledger/weather.py`), so
+     polling here costs the forecast provider nothing. A failed ask keeps the
+     forecast already on screen rather than replacing it with an error. */
+  const WX_POLL_MS = 5 * 60 * 1000;
+  let wxShown = false;
+  async function fetchWeather() {
+    const res = await api('/api/weather/hourly?hours=8');
+    if (!alive) return;
+    if (!res.ok && wxShown) return;
+    paintNow(wxNow, res);
+    wxShown = res.ok && !!(res.data && res.data.configured);
+  }
+  const wxTimer = setInterval(() => { if (!document.hidden) fetchWeather(); }, WX_POLL_MS);
+  const wxOnVisible = () => { if (!document.hidden) fetchWeather(); };
+  document.addEventListener('visibilitychange', wxOnVisible);
+
   fetchWeek();
+  fetchWeather();
 
   return {
     destroy() {
       alive = false;
+      clearInterval(wxTimer);
+      document.removeEventListener('visibilitychange', wxOnVisible);
+      wxNarrow.removeEventListener('change', placeWeather);
       figures.forEach((f) => f.destroy && f.destroy());
       if (distFig && distFig.destroy) distFig.destroy();
     },
@@ -1447,7 +1495,7 @@ export function mount(host, route) {
       if (e.key === 't') { btnToday.click(); return true; }
       return false;
     },
-    refresh() { fetchWeek({ keepFrame: true }); },
+    refresh() { fetchWeek({ keepFrame: true }); fetchWeather(); },
   };
 }
 

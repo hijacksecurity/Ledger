@@ -21,6 +21,8 @@ recovery-cards.js  one card per measure, shared by #/recovery and #/week
 calories.js     the day's figure, pill, fuel bar, week strip and key — shared
                 by #/calories and #/week; decides no standing
 weight.js       bodyweight spec and sums, shared by #/all and #/calories
+weather.js      the forecast, small: six hours on #/week, a mark per day on
+                #/plan; decides nothing (ledger/weather.py does)
 view-*.js       one module per view
 sw.js           offline shell, network-first
 ```

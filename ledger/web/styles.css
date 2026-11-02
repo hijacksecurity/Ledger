@@ -200,6 +200,22 @@
   /* Bodyweight. Not a modality and not a nightly number, so it gets its own
      hue rather than borrowing one; sky on charcoal, deep sea on paper. */
   --weight:  #6cc4e8;
+  /* Weather (weather.js). The sky in its own colours — sun gold, rain blue,
+     snow ice, lightning amber — because those are read before any word is.
+     Temperatures take a band colour on the weather-map ramp, cold blue to hot
+     red, and every surface that uses them prints the key beside them. */
+  --wx-sun:  #f5c242;
+  --wx-moon: #c3c9f2;
+  --wx-rain: #4fb0ef;
+  --wx-snow: #bfe3ff;
+  --wx-bolt: #f5a524;
+  --tb-freezing: #b8a9ff;
+  --tb-cold:     #6aa9ff;
+  --tb-cool:     #3fcfc4;
+  --tb-mild:     #93d46d;
+  --tb-warm:     #f2c14e;
+  --tb-hot:      #f5913e;
+  --tb-very-hot: #f2615a;
 
   /* Lifted off the graphic tone. `#e5534b` measured 4.35:1 as 13px digits on a
      deload row's surface-2 ground — the assumption that "on dark the graphic
@@ -302,6 +318,18 @@
   --stress:  #a86a00;
   --battery: #4f8a12;
   --weight:  #1e78a8;
+  --wx-sun:  #d39400;
+  --wx-moon: #5b63b8;
+  --wx-rain: #1d7cc2;
+  --wx-snow: #5b93c2;
+  --wx-bolt: #c97800;
+  --tb-freezing: #5b45d6;
+  --tb-cold:     #1f66d1;
+  --tb-cool:     #0b847c;
+  --tb-mild:     #3c8419;
+  --tb-warm:     #9a6400;
+  --tb-hot:      #c04b0c;
+  --tb-very-hot: #c42b2b;
 
   --tone-poor-ink:   #b3211f;
   --tone-thin-ink:   #a8480a;

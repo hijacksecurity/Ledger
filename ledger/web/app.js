@@ -286,7 +286,7 @@ main.removeAttribute('aria-busy');
 
 /* Bump with the service worker VERSION. Shown on the Sync page so "am I even
    looking at the new build?" is answerable without opening devtools. */
-export const BUILD = 'ledger-v144';
+export const BUILD = 'ledger-v149';
 window.__ledgerBuild = BUILD;
 
 if ('serviceWorker' in navigator) {

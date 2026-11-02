@@ -26,7 +26,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from ledger import leagues
+from ledger import leagues, weather
 from ledger.config import load_config
 from ledger.core import load as load_mod
 from ledger.db import queries as q
@@ -1221,6 +1221,60 @@ def refresh_leagues(conn: DB) -> dict[str, Any]:
         "results": [{"team": t, "outcome": o} for t, o in results],
         "leagues": leagues.read(conn),
     }
+
+
+# --- Weather ----------------------------------------------------------------
+#
+# A forecast for the one place set in .env, from Open-Meteo, cached in memory
+# (`ledger/weather.py`). Not stored, not part of the record. With no place set
+# both endpoints answer `configured: false` and fetch nothing.
+
+
+def _forecast() -> tuple[dict[str, Any], dict[str, Any]]:
+    """(raw forecast, envelope), or a 503 naming what failed."""
+    place = cfg.weather
+    assert place is not None
+    try:
+        raw, fetched_at, stale = weather.CACHE.get(place)
+    except weather.WeatherUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return raw, weather.envelope(place, fetched_at, stale)
+
+
+@app.get("/api/weather/hourly")
+def weather_hourly(hours: int = 24) -> dict[str, Any]:
+    """The next `hours` hours (1 to 48, default 24), starting with the hour in
+    progress, plus today's and tomorrow's day rows for the high, the low and
+    the light."""
+    if cfg.weather is None:
+        return dict(weather.NOT_CONFIGURED)
+    raw, env = _forecast()
+    body = weather.hourly(raw, weather.local_now(raw), max(1, min(48, hours)),
+                          cfg.weather.units)
+    return {**env, "timeframe": weather.hourly_timeframe(body["hours"]), **body}
+
+
+@app.get("/api/weather/daily")
+def weather_daily(
+    from_: str | None = Query(None, alias="from"), to: str | None = None,
+) -> dict[str, Any]:
+    """One row per date in the window (default: today and the six days after
+    it; at most 31 days). Dates the forecast does not cover come back with a
+    status — `past` or `beyond` — and no figures."""
+    if cfg.weather is None:
+        return dict(weather.NOT_CONFIGURED)
+    start_s = _iso_or_422(from_, "from") if from_ else None
+    end_s = _iso_or_422(to, "to") if to else None
+    raw, env = _forecast()
+    now = weather.local_now(raw)
+    start = date.fromisoformat(start_s) if start_s else now.date()
+    end = date.fromisoformat(end_s) if end_s else start + timedelta(days=6)
+    if start > end:
+        raise HTTPException(422, "from is after to")
+    if (end - start).days > 30:
+        raise HTTPException(422, "a window of at most 31 days")
+    body = weather.daily(raw, start, end, now, cfg.weather.units)
+    return {**env, "timeframe": weather.daily_timeframe(start, end), **body}
 
 
 @app.get("/api/sessions")

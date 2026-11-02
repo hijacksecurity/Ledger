@@ -81,6 +81,12 @@ saying 375 beside a note dividing by 339.
 
 ## Front-end conventions — the floor for any view, new or changed
 
+**How it should look is in `docs/DESIGN.md` — read it before building or
+restyling anything.** Understood at first look, one lead figure styled apart,
+colour that does the first reading and is always keyed, never plain. A view
+that follows every rule below and ignores that file has shipped plain, and
+plain has been rejected every time.
+
 These are what the rest of the app already does. Read `ledger/web/ui.js` end
 to end and two sibling `view-*.js` files before building; the user notices
 every one that is missed.
